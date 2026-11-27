@@ -21,6 +21,8 @@ function localImage(src: string): boolean {
   return !s.startsWith('//') && !s.startsWith('\\') && !/^[a-z][a-z0-9+.-]*:/i.test(s);
 }
 
+const HTML_NS = 'http://www.w3.org/1999/xhtml';
+
 let hooked = false;
 
 /**
@@ -43,17 +45,17 @@ export function renderMarkdown(md: string): string {
     });
   }
   const html = marked.parse(md, { async: false, gfm: true });
-  const clean = DOMPurify.sanitize(html, { FORBID_TAGS, FORBID_ATTR });
-  if (!clean.includes('<table')) return clean;
-  // After sanitizing, so the wrapper is ours: wide tables scroll inside it, not the page.
-  // Done on the parsed tree (never by string edits, which could land inside an attribute).
-  const tpl = document.createElement('template');
-  tpl.innerHTML = clean;
-  for (const table of tpl.content.querySelectorAll('table')) {
+  const clean = DOMPurify.sanitize(html, { FORBID_TAGS, FORBID_ATTR, RETURN_DOM_FRAGMENT: true });
+  // Wrap HTML tables on the sanitized tree, then serialize once: wide tables scroll inside
+  // the wrapper, not the page. (SVG/MathML elements named "table" are left alone.)
+  for (const table of clean.querySelectorAll('table')) {
+    if (table.namespaceURI !== HTML_NS) continue;
     const wrap = document.createElement('div');
     wrap.className = 'table-wrap';
     table.replaceWith(wrap);
     wrap.append(table);
   }
-  return tpl.innerHTML;
+  const out = document.createElement('div');
+  out.append(clean);
+  return out.innerHTML;
 }
