@@ -1,7 +1,7 @@
 //! Operations shared by the REST API, the MCP server and the CLI.
 
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::config::Paths;
 use crate::index::index_file;
@@ -65,8 +65,26 @@ pub fn safe_plan_path(store: &Store, paths: &Paths, plan_id: &str) -> Result<Pat
     }
 }
 
-/// Read → set the task's status line → atomic write → reindex; returns the
-/// freshly indexed plan.
+const LOCK_FILE: &str = ".plan-atlas.lock";
+
+/// Exclusive advisory lock on `<dir>/.plan-atlas.lock`, held until the
+/// returned file is dropped. Serializes id assignment and plan writes across
+/// threads and across processes (server, `plan-atlas mcp` per Claude
+/// session, CLI).
+pub fn lock_dir(dir: &Path) -> Result<std::fs::File, OpError> {
+    std::fs::create_dir_all(dir).map_err(OpError::internal)?;
+    let f = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(dir.join(LOCK_FILE))
+        .map_err(OpError::internal)?;
+    f.lock().map_err(OpError::internal)?;
+    Ok(f)
+}
+
+/// Under the plan directory's lock: read → set the task's status line →
+/// atomic write → reindex; returns the freshly indexed plan.
 pub fn set_task_status_op(
     store: &Store,
     tax: &Taxonomy,
@@ -79,6 +97,11 @@ pub fn set_task_status_op(
         return Err(OpError::NotFound(format!("task not found: {task_id}")));
     }
     let path = safe_plan_path(store, paths, plan_id)?;
+    let dir = path
+        .parent()
+        .ok_or_else(|| OpError::internal("plan path has no parent"))?;
+    // Held across read → write → reindex so concurrent changes don't lose updates.
+    let _lock = lock_dir(dir)?;
     let bytes = std::fs::read(&path).map_err(OpError::internal)?;
     let new = set_task_status(&bytes, task_id, status).map_err(|e| match e {
         WriteError::TaskNotFound(_) => {

@@ -16,7 +16,7 @@ use time::{OffsetDateTime, UtcOffset};
 
 use crate::config::Paths;
 use crate::index::index_file;
-use crate::ops::{OpError, safe_plan_path, set_task_status_op, valid_id};
+use crate::ops::{OpError, lock_dir, safe_plan_path, set_task_status_op, valid_id};
 use crate::plan::slug::slugify;
 use crate::plan::{
     Plan, TaskStatus, Warning, next_plan_id, parse_plan, plan_file_name, write_atomic,
@@ -304,23 +304,6 @@ fn get_plan(ctx: &Ctx, plan_id: &str) -> Result<Plan, OpError> {
         .get_plan(plan_id)
         .map_err(OpError::internal)?
         .ok_or_else(not_found)
-}
-
-const LOCK_FILE: &str = ".plan-atlas.lock";
-
-/// Exclusive advisory lock on `<dir>/.plan-atlas.lock`, held until the
-/// returned file is dropped. Serializes id assignment and writes across
-/// threads and across `plan-atlas mcp` processes (one per Claude session).
-fn lock_dir(dir: &Path) -> Result<std::fs::File, OpError> {
-    std::fs::create_dir_all(dir).map_err(OpError::internal)?;
-    let f = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(false)
-        .open(dir.join(LOCK_FILE))
-        .map_err(OpError::internal)?;
-    f.lock().map_err(OpError::internal)?;
-    Ok(f)
 }
 
 /// Plan ids of `project`: the index plus the frontmatter of every visible
