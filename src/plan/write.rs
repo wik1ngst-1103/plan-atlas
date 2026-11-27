@@ -4,6 +4,7 @@ use std::fmt;
 use std::fs;
 use std::io::{self, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::model::TaskStatus;
 use super::slug::slugify;
@@ -121,24 +122,42 @@ pub fn set_task_status(
     Ok(out)
 }
 
-/// Write via a temp file in the same directory, fsync, then rename over `path`.
+static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Write via a unique temp file in the same directory, fsync, then rename over
+/// `path`. Symlinks are followed (the link stays a link) and the existing
+/// file's permissions are kept.
 pub fn write_atomic(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let dir = path.parent().filter(|p| !p.as_os_str().is_empty());
-    let name = path
+    let real = match fs::symlink_metadata(path) {
+        Ok(m) if m.file_type().is_symlink() => fs::canonicalize(path)?,
+        _ => path.to_path_buf(),
+    };
+    let dir = real.parent().filter(|p| !p.as_os_str().is_empty());
+    let name = real
         .file_name()
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "path has no file name"))?
         .to_string_lossy();
-    let tmp_name = format!(".{name}.tmp-{}", std::process::id());
+    let tmp_name = format!(
+        ".{name}.tmp-{}-{}",
+        std::process::id(),
+        TMP_COUNTER.fetch_add(1, Ordering::Relaxed)
+    );
     let tmp = match dir {
         Some(d) => d.join(&tmp_name),
         None => Path::new(&tmp_name).to_path_buf(),
     };
     let result = (|| {
-        let mut f = fs::File::create(&tmp)?;
+        let mut f = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)?;
         f.write_all(bytes)?;
+        if let Ok(meta) = fs::metadata(&real) {
+            fs::set_permissions(&tmp, meta.permissions())?;
+        }
         f.sync_all()?;
         drop(f);
-        fs::rename(&tmp, path)
+        fs::rename(&tmp, &real)
     })();
     if result.is_err() {
         let _ = fs::remove_file(&tmp);

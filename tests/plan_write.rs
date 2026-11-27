@@ -133,3 +133,62 @@ fn write_atomic_replaces_and_leaves_no_temp() {
     assert_eq!(fs::read(&p).unwrap(), b"new");
     assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
 }
+
+#[test]
+fn concurrent_writes_never_corrupt() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path().join("a.md");
+    fs::write(&p, b"init").unwrap();
+    let contents: Vec<Vec<u8>> = (0..8).map(|t| vec![b'a' + t as u8; 50_000]).collect();
+    std::thread::scope(|s| {
+        for c in &contents {
+            let p = &p;
+            s.spawn(move || {
+                for _ in 0..20 {
+                    write_atomic(p, c).unwrap();
+                }
+            });
+        }
+    });
+    let got = fs::read(&p).unwrap();
+    assert!(contents.contains(&got));
+    let names: Vec<_> = fs::read_dir(dir.path())
+        .unwrap()
+        .map(|e| e.unwrap().file_name())
+        .collect();
+    assert_eq!(names.len(), 1, "leftover files: {names:?}");
+}
+
+#[cfg(unix)]
+#[test]
+fn preserves_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path().join("a.md");
+    fs::write(&p, b"old").unwrap();
+    fs::set_permissions(&p, fs::Permissions::from_mode(0o640)).unwrap();
+    write_atomic(&p, b"new").unwrap();
+    assert_eq!(
+        fs::metadata(&p).unwrap().permissions().mode() & 0o777,
+        0o640
+    );
+    assert_eq!(fs::read(&p).unwrap(), b"new");
+}
+
+#[cfg(unix)]
+#[test]
+fn writes_through_symlink() {
+    let dir = tempfile::tempdir().unwrap();
+    let real = dir.path().join("real.md");
+    let link = dir.path().join("link.md");
+    fs::write(&real, b"old").unwrap();
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+    write_atomic(&link, b"new").unwrap();
+    assert!(
+        fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink()
+    );
+    assert_eq!(fs::read(&real).unwrap(), b"new");
+}
