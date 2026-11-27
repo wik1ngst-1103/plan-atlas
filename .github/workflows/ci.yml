@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build web UI (embedded into the binary)
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - name: cargo test
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --no-fail-fast 2>&1 | tee test.log || {
+            # Surface each failing test and its panic as an annotation so it is
+            # visible on the PR without opening (or having rights to) the logs.
+            grep -E "^thread '.*' .*panicked at|^---- .* stdout ----|^test .* FAILED$" test.log \
+              | head -n 40 | sed 's/^/::error title=cargo test::/'
+            grep -A6 "panicked at" test.log | head -n 120 | tr '\n' ' ' | cut -c1-3500 \
+              | sed 's/^/::error title=panic details::/'
+            exit 1
+          }
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - run: npm run size
+
+  bench:
+    name: resource budget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build web UI
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+      - run: scripts/bench-memory.sh

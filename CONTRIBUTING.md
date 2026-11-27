@@ -13,12 +13,12 @@ Thanks for helping! This guide gets you from clone to merged pull request.
 
 Requirements:
 
-- **Rust 1.85+** via [rustup](https://rustup.rs). `rust-toolchain.toml` pins the exact version.
+- **Rust 1.89+** via [rustup](https://rustup.rs). `rust-toolchain.toml` pins the exact version.
 - **Node.js 22+**, needed only to build the web UI.
 - Git.
 
 ```sh
-git clone https://github.com/WiK1ngST/plan-atlas.git
+git clone https://github.com/wik1ngst-1103/plan-atlas.git
 cd plan-atlas
 
 # 1. Build the web UI once (it is embedded into the binary)
@@ -90,6 +90,16 @@ If you touched anything that runs while the app is idle (watcher, poller, SSE), 
 **UI copy is for non-developers too.** Prefer plain words ("Coding assistant is running tests") over jargon (`Bash npm test`). Every user-visible string goes through i18n.
 
 **Style.** Use `rustfmt` and `clippy` defaults. Svelte/TS follow the repo's Prettier config. Prefer small, focused files.
+
+## Website
+
+The project website lives in `site/`: static HTML, CSS and a little vanilla JavaScript, with no build step. Preview it locally with:
+
+```sh
+python3 -m http.server -d site
+```
+
+Then open `http://localhost:8000`. Keep every URL relative so the page also works under `https://wik1ngst-1103.github.io/plan-atlas/`; `404.html` is the one exception and links `/plan-atlas/` absolutely. Copy lives in `index.html` (English) and `site/main.js` (Vietnamese), so update both. Screenshots must come from sample data, never real plans. Pushing changes under `site/` to `main` deploys the site through `.github/workflows/pages.yml`.
 
 ## Commits and pull requests
 

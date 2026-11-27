@@ -1,0 +1,82 @@
+---
+name: plan-atlas
+description: Use whenever you write, revise, or execute an implementation plan — planning a feature, breaking work into tasks, updating a plan, or starting/finishing a planned task. Plans MUST go through the Plan Atlas MCP tools (create_plan, update_plan, start_task, complete_task) so they are indexed, tagged, linked to related plans, and tracked live in the Plan Atlas web app.
+---
+
+# Plan Atlas
+
+Plan Atlas is the single store for implementation plans. Use this skill any time a plan is created or updated, and any time you execute a task from a plan.
+
+## Rules
+
+- Tools (all from the `plan-atlas` MCP server): `mcp__plan-atlas__list_plans`, `mcp__plan-atlas__search_plans`, `mcp__plan-atlas__get_plan`, `mcp__plan-atlas__get_taxonomy`, `mcp__plan-atlas__create_plan`, `mcp__plan-atlas__update_plan`, `mcp__plan-atlas__start_task`, `mcp__plan-atlas__complete_task`.
+- These tools may be deferred — load them with ToolSearch first (for example `select:mcp__plan-atlas__create_plan`); deferred is not unavailable.
+- Every plan MUST be registered with `mcp__plan-atlas__create_plan`. Plan Atlas stores its own copy under `~/.plan-atlas`; do not write files there yourself.
+- If the project or another skill needs a plan file in the repo (for example `docs/superpowers/plans/`), write it there too AND register it with `mcp__plan-atlas__create_plan`.
+- Plan mode: while in plan mode, follow plan mode (write the plan file it asks for and call ExitPlanMode). After the plan is approved, call `mcp__plan-atlas__create_plan` with the approved plan before starting work.
+- Before `create_plan`: call `get_taxonomy` (tags must come from it) and `search_plans` with the plan's topic and likely tags. List every relevant plan you find under `related`.
+- Revise an existing plan with `update_plan` (send the full Markdown). Use `list_plans` / `get_plan` to read plans.
+- If a tool returns `warnings`, fix them with `update_plan`.
+- Only use tags from the taxonomy. If none fits, do not invent one: propose it in the plan text as `new/<tag>` (for example in the Overview) and leave it out of `tags`.
+
+## Required structure
+
+```markdown
+---
+title: <title>
+tags: [type/feature, domain/backend, tech/jwt]
+related:
+  - { to: PLAN-auth-001, type: depends_on }   # depends_on | extends | relates_to
+---
+
+## 01. Overview
+## 02. Requirements & Scope
+## 03. Technical Analysis
+### Current Architecture
+### Existing Problems
+### Proposed Architecture
+## 04. Task Breakdown
+### TASK-001: <name>
+- complexity: 1-5
+- model: haiku | sonnet | opus
+- effort: low | medium | high
+- depends_on: []
+- status: todo
+- tags: [domain/backend]
+<description and acceptance criteria>
+### TASK-002: <name>
+- complexity: 2
+- depends_on: [TASK-001]
+- status: todo
+<description and acceptance criteria>
+## 05. Risks & Rollback
+```
+
+`id`, `project` and `created` are assigned by the server. Number tasks `TASK-001`, `TASK-002`, ...
+
+Relations: `depends_on` = this plan needs the other finished first; `extends` = builds on the other plan's feature; `relates_to` = same topic, no ordering.
+
+## Complexity → model and effort
+
+Score every task 1–5. `model`/`effort` may be omitted; they default from complexity.
+
+| Score | Signals | Model | Effort |
+|---|---|---|---|
+| 1 | Text or config edit, one file | haiku | low |
+| 2 | CRUD following an existing pattern | sonnet | low |
+| 3 | Several files, needs tests | sonnet | medium |
+| 4 | Architecture change, security, concurrency | opus | medium |
+| 5 | New design, ambiguous, data-loss risk | opus | high |
+
+## Executing tasks
+
+1. Right before working on a task, call `mcp__plan-atlas__start_task` (plan_id, task_id).
+2. When it is finished and verified, call `mcp__plan-atlas__complete_task`.
+3. Only if the `plan-atlas` MCP server is genuinely not configured (not merely deferred), run `plan-atlas task start <PLAN-ID> <TASK-ID>` and `plan-atlas task done <PLAN-ID> <TASK-ID>` instead.
+4. When dispatching a subagent for a task with the Agent tool, pass the task's model (from `get_plan`: the task's explicit `model`/`effort`, otherwise the complexity default above; a task without complexity counts as 3). Mention the effort in the prompt if the tool has no effort parameter.
+
+Activity of the session and its subagents is captured by hooks automatically; nothing else to do.
+
+## Taxonomy
+
+{{TAXONOMY}}
