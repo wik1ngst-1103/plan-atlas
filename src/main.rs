@@ -51,6 +51,12 @@ enum TaskAction {
 }
 
 fn main() -> ExitCode {
+    // `hook` bypasses clap: a parse error would exit 2, which blocks the
+    // tool call. Always exit 0 and print nothing.
+    if std::env::args_os().nth(1).is_some_and(|a| a == "hook") {
+        plan_atlas::events::run_hook(std::io::stdin(), &plan_atlas::config::Paths::resolve());
+        return ExitCode::SUCCESS;
+    }
     let cli = Cli::parse();
     let command = cli.command.unwrap_or(Command::Serve {
         port: None,
@@ -69,9 +75,9 @@ fn run(command: Command) -> Result<(), String> {
     // Stubs: each later task replaces one arm with a real implementation.
     match command {
         Command::Import => run_import(),
+        Command::Hook => Ok(()), // handled in `main` before parsing
         Command::Serve { .. }
         | Command::Mcp
-        | Command::Hook
         | Command::Setup { .. }
         | Command::UninstallClaude
         | Command::Task { .. } => Err("not implemented yet".to_string()),

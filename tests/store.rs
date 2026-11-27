@@ -280,3 +280,36 @@ fn bulk_upsert_1000_plans_is_fast() {
     s.upsert_plan(&p).unwrap();
     assert_eq!(s.search("title bulk-0042", 10).unwrap().plans.len(), 1);
 }
+
+#[test]
+fn migrates_v1_database_to_v2() {
+    let dir = tempfile::tempdir().unwrap();
+    let db = dir.path().join("old.db");
+    {
+        let c = Connection::open(&db).unwrap();
+        c.execute_batch(include_str!("../src/store/schema.sql"))
+            .unwrap();
+        c.pragma_update(None, "user_version", 1).unwrap();
+        c.execute(
+            "INSERT INTO plans VALUES ('PLAN-a-001','a','A','/x.md','{}','h',NULL,1,0)",
+            [],
+        )
+        .unwrap();
+    }
+    let tax = Arc::new(Taxonomy::embedded_default());
+    let s = Store::open(&db, tax.clone()).unwrap();
+    s.set_session_task("s", "PLAN-a-001", "TASK-001").unwrap();
+    assert!(s.live_agents().unwrap().is_empty());
+    drop(s);
+    // Re-opening an up-to-date database is a no-op.
+    Store::open(&db, tax).unwrap();
+    let c = Connection::open(&db).unwrap();
+    let v: i64 = c
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap();
+    assert_eq!(v, 2);
+    let plans: i64 = c
+        .query_row("SELECT COUNT(*) FROM plans", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(plans, 1, "existing rows survive the migration");
+}

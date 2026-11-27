@@ -1,0 +1,1 @@
+{"session_id":"sess-2","transcript_path":"/home/user/.claude/projects/x/sess-2.jsonl","cwd":"/home/user/my-project","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"npm test","description":"Run test suite"},"tool_use_id":"toolu_01ABC"}

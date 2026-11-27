@@ -1,6 +1,7 @@
 //! SQLite index of plans. All methods are synchronous; async callers wrap
 //! them in `spawn_blocking`.
 
+mod events;
 mod plans;
 mod search;
 
@@ -15,10 +16,14 @@ use ts_rs::TS;
 use crate::plan::{RelationKind, Task};
 use crate::taxonomy::Taxonomy;
 
+pub use events::{AgentView, EventKind, HookEvent, LiveTask, LogEntry, StepEvent, now_ms};
 pub use search::fold;
 
 const SCHEMA_V1: &str = include_str!("schema.sql");
-const SCHEMA_VERSION: i64 = 1;
+/// v1 → v2: agent activity. Idempotent, so concurrent openers (server and
+/// hook process) can both run it.
+const MIGRATE_V2: &str = include_str!("schema_v2.sql");
+const SCHEMA_VERSION: i64 = 2;
 
 pub struct Store {
     conn: Mutex<Connection>,
@@ -128,9 +133,12 @@ impl Store {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
         match version {
-            0 => {
+            0 | 1 => {
                 let tx = conn.unchecked_transaction()?;
-                tx.execute_batch(SCHEMA_V1)?;
+                if version == 0 {
+                    tx.execute_batch(SCHEMA_V1)?;
+                }
+                tx.execute_batch(MIGRATE_V2)?;
                 tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
                 tx.commit()?;
             }

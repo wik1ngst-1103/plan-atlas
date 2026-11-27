@@ -1,0 +1,1 @@
+{"session_id":"sess-1","transcript_path":"/home/user/.claude/projects/x/sess-1.jsonl","cwd":"/home/user/my-project","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"/home/user/my-project/src/auth/token.rs"},"tool_use_id":"toolu_01READ"}

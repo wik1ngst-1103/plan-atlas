@@ -1,0 +1,1 @@
+{"session_id":"sess-1","transcript_path":"/home/user/.claude/projects/x/sess-1.jsonl","cwd":"/home/user/my-project","permission_mode":"default","hook_event_name":"PreToolUse","tool_name":"mcp__plan-atlas__start_task","tool_input":{"plan_id":"PLAN-auth-gateway-001","task_id":"TASK-001"},"tool_use_id":"toolu_01START","mcp_server":{"name":"plan-atlas","source":"user"}}

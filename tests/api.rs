@@ -338,3 +338,75 @@ async fn stream_emits_named_events() {
     assert!(text.contains("event: plan_changed"), "{text}");
     assert!(text.contains(PLAN), "{text}");
 }
+
+#[tokio::test]
+async fn activity_and_task_log_endpoints() {
+    use plan_atlas::events::humanize;
+    use plan_atlas::store::{EventKind, HookEvent, now_ms};
+    let e = env();
+    let store = &e.state.store;
+    store.set_session_task("s1", PLAN, "TASK-001").unwrap();
+    for (agent, role, file) in [
+        ("main", "main", "/p/a.rs"),
+        ("agent-1", "Explore", "/p/b.rs"),
+    ] {
+        store
+            .insert_event(&HookEvent {
+                at: now_ms(),
+                session_id: "s1".into(),
+                agent_id: agent.into(),
+                role: role.into(),
+                kind: EventKind::PreTool,
+                tool: Some("Read".into()),
+                step: Some(humanize("Read", &serde_json::json!({ "file_path": file }))),
+            })
+            .unwrap();
+    }
+
+    let (st, v) = call(
+        &e.app,
+        req("GET", "/api/activity").body(Body::empty()).unwrap(),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(v.as_array().unwrap().len(), 1, "{v}");
+    assert_eq!(v[0]["plan_id"], PLAN);
+    assert_eq!(v[0]["task_id"], "TASK-001");
+    let agents = v[0]["agents"].as_array().unwrap();
+    assert_eq!(agents.len(), 2);
+    assert_eq!(agents[1]["role"], "Explore");
+    assert_eq!(agents[1]["model"], Value::Null);
+    assert_eq!(agents[1]["step"]["text_vi"], "đọc b.rs");
+    assert_eq!(agents[1]["step"]["icon"], "📖");
+    assert!(agents[1]["at"].is_i64());
+
+    let uri = format!("/api/plans/{PLAN}/tasks/TASK-001/log?limit=1");
+    let (st, v) = call(&e.app, req("GET", &uri).body(Body::empty()).unwrap()).await;
+    assert_eq!(st, StatusCode::OK);
+    let log = v.as_array().unwrap();
+    assert_eq!(log.len(), 1);
+    assert_eq!(log[0]["role"], "Explore", "newest first");
+    assert_eq!(log[0]["step"]["text_en"], "read b.rs");
+
+    let (st, v) = call(
+        &e.app,
+        req(
+            "GET",
+            &format!("/api/plans/{PLAN}/tasks/TASK-001/log?limit=100000"),
+        )
+        .body(Body::empty())
+        .unwrap(),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(v.as_array().unwrap().len(), 2);
+
+    let (st, _) = call(
+        &e.app,
+        req("GET", "/api/plans/bad%20id/tasks/TASK-001/log")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+}

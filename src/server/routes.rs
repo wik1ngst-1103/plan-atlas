@@ -61,6 +61,8 @@ pub(super) fn router() -> Router<AppState> {
         .route("/api/plans", get(plans))
         .route("/api/plans/{id}", get(plan))
         .route("/api/plans/{id}/tasks/{task}", patch(patch_task))
+        .route("/api/plans/{id}/tasks/{task}/log", get(task_log))
+        .route("/api/activity", get(activity))
         .route("/api/tasks", get(tasks))
         .route("/api/topics", get(topics))
         .route("/api/graph", get(graph))
@@ -273,6 +275,33 @@ async fn patch_task(
         status,
     });
     Ok(Json(plan))
+}
+
+async fn activity(State(s): State<AppState>) -> ApiResult<Vec<crate::store::LiveTask>> {
+    blocking(move || s.store.live_agents().map(Json).map_err(ApiError::internal)).await
+}
+
+#[derive(Deserialize)]
+struct LogQuery {
+    limit: Option<u32>,
+}
+
+async fn task_log(
+    State(s): State<AppState>,
+    Path((plan_id, task_id)): Path<(String, String)>,
+    Query(q): Query<LogQuery>,
+) -> ApiResult<Vec<crate::store::LogEntry>> {
+    if !valid_id(&plan_id) || !valid_id(&task_id) {
+        return Err(ApiError::NotFound);
+    }
+    let limit = q.limit.unwrap_or(30).clamp(1, 200);
+    blocking(move || {
+        s.store
+            .task_log(&plan_id, &task_id, limit)
+            .map(Json)
+            .map_err(ApiError::internal)
+    })
+    .await
 }
 
 fn live_type(ev: &LiveEvent) -> &'static str {
