@@ -29,4 +29,6 @@ pub enum LiveEvent {
         task_id: String,
         agent: AgentView,
     },
+    /// The launcher's background import + initial scan finished.
+    IndexReady,
 }

@@ -275,6 +275,7 @@ fn live_type(ev: &LiveEvent) -> &'static str {
         LiveEvent::PlanChanged { .. } => "plan_changed",
         LiveEvent::TaskStatus { .. } => "task_status",
         LiveEvent::AgentStep { .. } => "agent_step",
+        LiveEvent::IndexReady => "index_ready",
     }
 }
 

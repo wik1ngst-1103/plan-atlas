@@ -1,5 +1,6 @@
 //! Local HTTP server: REST API, SSE stream and localhost-only guards.
 
+mod assets;
 mod routes;
 mod security;
 
@@ -24,7 +25,7 @@ pub struct AppState {
 }
 
 pub fn build_router(state: AppState) -> Router {
-    let router = routes::router();
+    let router = routes::router().fallback(assets::fallback);
     security::guard(router, state.clone()).with_state(state)
 }
 

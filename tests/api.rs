@@ -410,3 +410,32 @@ async fn activity_and_task_log_endpoints() {
     .await;
     assert_eq!(st, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn non_api_get_serves_placeholder_page() {
+    let e = env();
+    let resp = e
+        .app
+        .clone()
+        .oneshot(req("GET", "/plans/x").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    assert!(String::from_utf8_lossy(&bytes).contains("the web UI has not been built yet"));
+    let (status, _) = call(&e.app, req("GET", "/api/nope").body(Body::empty()).unwrap()).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let bad_host = Request::builder()
+        .uri("/")
+        .header("host", "evil.example:7420")
+        .body(Body::empty())
+        .unwrap();
+    let (status, _) = call(&e.app, bad_host).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[test]
+fn index_ready_event_serializes_with_type_tag() {
+    let v = serde_json::to_value(LiveEvent::IndexReady).unwrap();
+    assert_eq!(v, serde_json::json!({ "type": "index_ready" }));
+}

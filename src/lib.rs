@@ -2,6 +2,7 @@ pub mod config;
 pub mod events;
 pub mod import;
 pub mod index;
+pub mod launch;
 pub mod mcp;
 pub mod ops;
 pub mod plan;

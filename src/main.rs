@@ -5,22 +5,29 @@ use clap::{Parser, Subcommand};
 /// Plan Atlas: one local place to browse, search and track your Claude Code plans.
 #[derive(Debug, Parser)]
 #[command(name = "plan-atlas", version, about)]
+#[command(args_conflicts_with_subcommands = true)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
+    /// Options for the default `serve` command
+    #[command(flatten)]
+    serve: ServeArgs,
+}
+
+#[derive(Debug, Clone, clap::Args)]
+struct ServeArgs {
+    /// Port to listen on (default 7420, falls back up to 7430)
+    #[arg(long, env = "PLAN_ATLAS_PORT")]
+    port: Option<u16>,
+    /// Do not open the browser
+    #[arg(long)]
+    no_open: bool,
 }
 
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Start the web UI (default when no subcommand is given)
-    Serve {
-        /// Port to listen on (default 7420, falls back up to 7430)
-        #[arg(long, env = "PLAN_ATLAS_PORT")]
-        port: Option<u16>,
-        /// Do not open the browser
-        #[arg(long)]
-        no_open: bool,
-    },
+    Serve(ServeArgs),
     /// Run the MCP server over stdio (started by Claude Code)
     Mcp,
     /// Handle a Claude Code hook event (called by Claude Code)
@@ -62,10 +69,7 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     let cli = Cli::parse();
-    let command = cli.command.unwrap_or(Command::Serve {
-        port: None,
-        no_open: false,
-    });
+    let command = cli.command.unwrap_or(Command::Serve(cli.serve));
     match run(command) {
         Ok(()) => ExitCode::SUCCESS,
         Err(msg) => {
@@ -84,10 +88,25 @@ fn run(command: Command) -> Result<(), String> {
             plan_atlas::mcp::run(plan_atlas::config::Paths::resolve()).map_err(|e| format!("{e:#}"))
         }
         Command::Task { action } => run_task(action),
-        Command::Setup { yes } => run_setup(yes),
-        Command::UninstallClaude { yes } => run_uninstall(yes),
-        Command::Serve { .. } => Err("not implemented yet".to_string()),
+        Command::Setup { yes } => plan_atlas::setup::run_setup(yes),
+        Command::UninstallClaude { yes } => plan_atlas::setup::run_uninstall(yes),
+        Command::Serve(args) => run_serve(args),
     }
+}
+
+fn run_serve(args: ServeArgs) -> Result<(), String> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .map_err(|e| format!("cannot start runtime: {e}"))?;
+    let result = rt.block_on(plan_atlas::launch::run(plan_atlas::launch::ServeOpts {
+        port: args.port,
+        no_open: args.no_open,
+    }));
+    // The background scan may still be running; do not wait for it.
+    rt.shutdown_timeout(std::time::Duration::from_millis(100));
+    result.map_err(|e| format!("{e:#}"))
 }
 
 fn run_import() -> Result<(), String> {
@@ -127,148 +146,4 @@ fn run_task(action: TaskAction) -> Result<(), String> {
         .map_err(|e| e.to_string())?;
     println!("{task_id} \u{2192} {label}");
     Ok(())
-}
-
-/// Ask `Continue? [Y/n]` on a TTY; without a TTY require `--yes`.
-fn confirm(yes: bool, cmd: &str) -> Result<bool, String> {
-    use std::io::{BufRead, IsTerminal, Write};
-    if yes {
-        return Ok(true);
-    }
-    if !std::io::stdin().is_terminal() {
-        return Err(format!(
-            "stdin is not a terminal; re-run with `plan-atlas {cmd} --yes` to confirm"
-        ));
-    }
-    print!("Continue? [Y/n] ");
-    std::io::stdout().flush().map_err(|e| e.to_string())?;
-    let mut answer = String::new();
-    std::io::stdin()
-        .lock()
-        .read_line(&mut answer)
-        .map_err(|e| e.to_string())?;
-    let a = answer.trim().to_lowercase();
-    Ok(a.is_empty() || a == "y" || a == "yes")
-}
-
-fn print_mcp(status: &plan_atlas::setup::McpStatus) {
-    use plan_atlas::setup::McpStatus;
-    match status {
-        McpStatus::Registered => println!("  MCP server: registered"),
-        McpStatus::AlreadyRegistered => println!("  MCP server: already registered"),
-        McpStatus::Updated => println!("  MCP server: re-registered with the current binary"),
-        McpStatus::Removed => println!("  MCP server: removed"),
-        McpStatus::Manual { command } => {
-            println!("  MCP server: `claude` not found on PATH; run this yourself:\n    {command}")
-        }
-        McpStatus::Failed { command, error } => println!(
-            "  MCP server: WARNING, command failed ({error}); run it yourself:\n    {command}"
-        ),
-    }
-}
-
-fn print_settings(r: &plan_atlas::setup::SetupReport, settings: &std::path::Path) {
-    if r.settings_changed {
-        println!("  Hooks: updated {}", settings.display());
-    } else {
-        println!("  Hooks: {} already up to date", settings.display());
-    }
-    if let Some(b) = &r.backup {
-        println!("  Backup: {}", b.display());
-    }
-}
-
-fn run_setup(yes: bool) -> Result<(), String> {
-    use plan_atlas::setup;
-    let home = setup::claude_home().ok_or("cannot determine Claude Code config directory")?;
-    // Not canonicalized: keep a stable symlink path (e.g. Homebrew's
-    // bin/plan-atlas) rather than a version-specific target.
-    let bin =
-        std::env::current_exe().map_err(|e| format!("cannot locate the plan-atlas binary: {e}"))?;
-    let claude = setup::find_claude_cli();
-    let settings = setup::settings_path(&home);
-    println!("plan-atlas setup will:");
-    println!(
-        "  - write the Skill to {}",
-        setup::skill_dir(&home).join("SKILL.md").display()
-    );
-    println!(
-        "  - add hooks (PreToolUse, SubagentStart, SubagentStop, SessionEnd) running `{}` to {} (backed up first)",
-        setup::hook_command(&bin),
-        settings.display()
-    );
-    let claude_name = claude
-        .as_deref()
-        .map_or("claude".to_string(), |p| p.display().to_string());
-    match &claude {
-        Some(_) => println!(
-            "  - register the MCP server: {}",
-            setup::mcp_add_command(&claude_name, &bin)
-        ),
-        None => println!(
-            "  - print the command to register the MCP server (`claude` not found on PATH)"
-        ),
-    }
-    if !confirm(yes, "setup")? {
-        println!("Aborted; nothing changed.");
-        return Ok(());
-    }
-    let paths = plan_atlas::config::Paths::resolve();
-    let tax = plan_atlas::taxonomy::Taxonomy::load(&paths);
-    let r = setup::install(&home, &bin, &tax, claude.as_deref()).map_err(|e| format!("{e:#}"))?;
-    println!("Done:");
-    println!("  Skill: {}", r.skill_path.display());
-    print_settings(&r, &settings);
-    print_mcp(&r.mcp);
-    set_setup_done(&paths, true)
-}
-
-/// Record `setup_done` unless config.toml exists but cannot be parsed (a
-/// broken file is left untouched, with a warning).
-fn set_setup_done(paths: &plan_atlas::config::Paths, done: bool) -> Result<(), String> {
-    let mut config = match plan_atlas::config::Config::load_strict(paths) {
-        Ok(c) => c.unwrap_or_default(),
-        Err(e) => {
-            eprintln!("plan-atlas: warning: {e}; not recording setup_done (file left unchanged)");
-            return Ok(());
-        }
-    };
-    if config.setup_done == done {
-        return Ok(());
-    }
-    config.setup_done = done;
-    config
-        .save(paths)
-        .map_err(|e| format!("cannot save {}: {e}", paths.config.display()))
-}
-
-fn run_uninstall(yes: bool) -> Result<(), String> {
-    use plan_atlas::setup;
-    let home = setup::claude_home().ok_or("cannot determine Claude Code config directory")?;
-    let claude = setup::find_claude_cli();
-    let settings = setup::settings_path(&home);
-    let claude_name = claude
-        .as_deref()
-        .map_or("claude".to_string(), |p| p.display().to_string());
-    println!("plan-atlas uninstall-claude will:");
-    println!("  - delete {}", setup::skill_dir(&home).display());
-    println!(
-        "  - remove only plan-atlas hook handlers from {} (backed up first)",
-        settings.display()
-    );
-    println!(
-        "  - unregister the MCP server: {}",
-        setup::mcp_remove_command(&claude_name)
-    );
-    if !confirm(yes, "uninstall-claude")? {
-        println!("Aborted; nothing changed.");
-        return Ok(());
-    }
-    let r = setup::uninstall(&home, claude.as_deref()).map_err(|e| format!("{e:#}"))?;
-    println!("Done:");
-    println!("  Skill: removed {}", r.skill_path.display());
-    print_settings(&r, &settings);
-    print_mcp(&r.mcp);
-    let paths = plan_atlas::config::Paths::resolve();
-    set_setup_done(&paths, false)
 }

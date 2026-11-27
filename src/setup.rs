@@ -461,3 +461,150 @@ pub fn uninstall(claude_home: &Path, claude_cli: Option<&Path>) -> Result<SetupR
         mcp,
     })
 }
+
+// ---- CLI flows shared by `plan-atlas setup`, `uninstall-claude` and the
+// first-run prompt of the launcher. ----
+
+/// Ask `Continue? [Y/n]` on a TTY; without a TTY require `--yes`.
+fn confirm(yes: bool, cmd: &str) -> Result<bool, String> {
+    use std::io::{BufRead, IsTerminal, Write};
+    if yes {
+        return Ok(true);
+    }
+    if !std::io::stdin().is_terminal() {
+        return Err(format!(
+            "stdin is not a terminal; re-run with `plan-atlas {cmd} --yes` to confirm"
+        ));
+    }
+    print!("Continue? [Y/n] ");
+    std::io::stdout().flush().map_err(|e| e.to_string())?;
+    let mut answer = String::new();
+    std::io::stdin()
+        .lock()
+        .read_line(&mut answer)
+        .map_err(|e| e.to_string())?;
+    let a = answer.trim().to_lowercase();
+    Ok(a.is_empty() || a == "y" || a == "yes")
+}
+
+fn print_mcp(status: &McpStatus) {
+    match status {
+        McpStatus::Registered => println!("  MCP server: registered"),
+        McpStatus::AlreadyRegistered => println!("  MCP server: already registered"),
+        McpStatus::Updated => println!("  MCP server: re-registered with the current binary"),
+        McpStatus::Removed => println!("  MCP server: removed"),
+        McpStatus::Manual { command } => {
+            println!("  MCP server: `claude` not found on PATH; run this yourself:\n    {command}")
+        }
+        McpStatus::Failed { command, error } => println!(
+            "  MCP server: WARNING, command failed ({error}); run it yourself:\n    {command}"
+        ),
+    }
+}
+
+fn print_settings(r: &SetupReport, settings: &std::path::Path) {
+    if r.settings_changed {
+        println!("  Hooks: updated {}", settings.display());
+    } else {
+        println!("  Hooks: {} already up to date", settings.display());
+    }
+    if let Some(b) = &r.backup {
+        println!("  Backup: {}", b.display());
+    }
+}
+
+/// The `plan-atlas setup` flow: describe the changes, confirm (skipped with
+/// `yes`), install, print a summary and record `setup_done`.
+pub fn run_setup(yes: bool) -> Result<(), String> {
+    let home = claude_home().ok_or("cannot determine Claude Code config directory")?;
+    // Not canonicalized: keep a stable symlink path (e.g. Homebrew's
+    // bin/plan-atlas) rather than a version-specific target.
+    let bin =
+        std::env::current_exe().map_err(|e| format!("cannot locate the plan-atlas binary: {e}"))?;
+    let claude = find_claude_cli();
+    let settings = settings_path(&home);
+    println!("plan-atlas setup will:");
+    println!(
+        "  - write the Skill to {}",
+        skill_dir(&home).join("SKILL.md").display()
+    );
+    println!(
+        "  - add hooks (PreToolUse, SubagentStart, SubagentStop, SessionEnd) running `{}` to {} (backed up first)",
+        hook_command(&bin),
+        settings.display()
+    );
+    let claude_name = claude
+        .as_deref()
+        .map_or("claude".to_string(), |p| p.display().to_string());
+    match &claude {
+        Some(_) => println!(
+            "  - register the MCP server: {}",
+            mcp_add_command(&claude_name, &bin)
+        ),
+        None => println!(
+            "  - print the command to register the MCP server (`claude` not found on PATH)"
+        ),
+    }
+    if !confirm(yes, "setup")? {
+        println!("Aborted; nothing changed.");
+        return Ok(());
+    }
+    let paths = crate::config::Paths::resolve();
+    let tax = crate::taxonomy::Taxonomy::load(&paths);
+    let r = install(&home, &bin, &tax, claude.as_deref()).map_err(|e| format!("{e:#}"))?;
+    println!("Done:");
+    println!("  Skill: {}", r.skill_path.display());
+    print_settings(&r, &settings);
+    print_mcp(&r.mcp);
+    set_setup_done(&paths, true)
+}
+
+/// Record `setup_done` unless config.toml exists but cannot be parsed (a
+/// broken file is left untouched, with a warning).
+pub fn set_setup_done(paths: &crate::config::Paths, done: bool) -> Result<(), String> {
+    let mut config = match crate::config::Config::load_strict(paths) {
+        Ok(c) => c.unwrap_or_default(),
+        Err(e) => {
+            eprintln!("plan-atlas: warning: {e}; not recording setup_done (file left unchanged)");
+            return Ok(());
+        }
+    };
+    if config.setup_done == done {
+        return Ok(());
+    }
+    config.setup_done = done;
+    config
+        .save(paths)
+        .map_err(|e| format!("cannot save {}: {e}", paths.config.display()))
+}
+
+/// The `plan-atlas uninstall-claude` flow; clears `setup_done`.
+pub fn run_uninstall(yes: bool) -> Result<(), String> {
+    let home = claude_home().ok_or("cannot determine Claude Code config directory")?;
+    let claude = find_claude_cli();
+    let settings = settings_path(&home);
+    let claude_name = claude
+        .as_deref()
+        .map_or("claude".to_string(), |p| p.display().to_string());
+    println!("plan-atlas uninstall-claude will:");
+    println!("  - delete {}", skill_dir(&home).display());
+    println!(
+        "  - remove only plan-atlas hook handlers from {} (backed up first)",
+        settings.display()
+    );
+    println!(
+        "  - unregister the MCP server: {}",
+        mcp_remove_command(&claude_name)
+    );
+    if !confirm(yes, "uninstall-claude")? {
+        println!("Aborted; nothing changed.");
+        return Ok(());
+    }
+    let r = uninstall(&home, claude.as_deref()).map_err(|e| format!("{e:#}"))?;
+    println!("Done:");
+    println!("  Skill: removed {}", r.skill_path.display());
+    print_settings(&r, &settings);
+    print_mcp(&r.mcp);
+    let paths = crate::config::Paths::resolve();
+    set_setup_done(&paths, false)
+}
