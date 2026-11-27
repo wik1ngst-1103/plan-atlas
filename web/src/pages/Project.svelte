@@ -2,30 +2,24 @@
   import PlanCard from '../components/PlanCard.svelte';
   import { api } from '../lib/api';
   import type { PlanSummary } from '../lib/generated/PlanSummary';
-  import type { TaskRow } from '../lib/generated/TaskRow';
   import { t } from '../lib/i18n';
   import { activity } from '../lib/live';
-  import { liveFirst, tasksByPlan } from '../lib/plans';
+  import { liveFirst } from '../lib/plans';
   import { projectColor } from '../lib/projectColor';
   import { onDataChange } from '../lib/refetch';
   import { route } from '../lib/router';
-  import { ensureTopics, refreshTopics, topicLabels } from '../lib/topics';
+  import { ensureTopics, topicLabels } from '../lib/topics';
 
   const name = $derived($route.page === 'project' ? $route.project : '');
   let plans = $state<PlanSummary[]>([]);
-  let rows = $state<TaskRow[]>([]);
   let loaded = $state(false);
   let error = $state<string | null>(null);
 
   async function load(project: string) {
-    const q = `?project=${encodeURIComponent(project)}`;
     try {
-      const [p, r] = await Promise.all([
-        api.get<PlanSummary[]>(`/api/plans${q}`),
-        api.get<TaskRow[]>(`/api/tasks${q}`),
-      ]);
+      const p = await api.get<PlanSummary[]>(`/api/plans?project=${encodeURIComponent(project)}`);
       if (project !== name) return;
-      [plans, rows] = [p, r];
+      plans = p;
       error = null;
     } catch (e) {
       error = (e as Error).message;
@@ -38,13 +32,9 @@
     loaded = false;
     void load(project);
     ensureTopics();
-    return onDataChange(() => {
-      void load(project);
-      void refreshTopics();
-    });
+    return onDataChange(() => void load(project));
   });
 
-  const byPlan = $derived(tasksByPlan(rows));
   const sorted = $derived(liveFirst(plans, $activity));
   const total = $derived(plans.reduce((n, p) => n + p.task_count, 0));
   const done = $derived(plans.reduce((n, p) => n + p.done_count, 0));
@@ -77,7 +67,7 @@
     </p>
     <div class="grid">
       {#each sorted as p (p.id)}
-        <PlanCard plan={p} tasks={byPlan[p.id]} labels={$topicLabels} />
+        <PlanCard plan={p} labels={$topicLabels} />
       {/each}
     </div>
   {/if}

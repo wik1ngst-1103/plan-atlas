@@ -2,28 +2,21 @@
   import PlanCard from '../components/PlanCard.svelte';
   import { api } from '../lib/api';
   import type { PlanSummary } from '../lib/generated/PlanSummary';
-  import type { ProjectSummary } from '../lib/generated/ProjectSummary';
-  import type { TaskRow } from '../lib/generated/TaskRow';
   import { t } from '../lib/i18n';
   import { activity } from '../lib/live';
-  import { liveFirst, runningCount, tasksByPlan } from '../lib/plans';
+  import { liveFirst, runningCount } from '../lib/plans';
   import { projectColor } from '../lib/projectColor';
   import { onDataChange } from '../lib/refetch';
-  import { ensureTopics, refreshTopics, topicLabels } from '../lib/topics';
+  import { ensureTopics, topicLabels } from '../lib/topics';
 
-  let projects = $state<ProjectSummary[]>([]);
   let plans = $state<PlanSummary[]>([]);
-  let rows = $state<TaskRow[]>([]);
   let loaded = $state(false);
   let error = $state<string | null>(null);
 
+  /** One request: plan summaries already carry their tasks' names and statuses. */
   async function load() {
     try {
-      [projects, plans, rows] = await Promise.all([
-        api.get<ProjectSummary[]>('/api/projects'),
-        api.get<PlanSummary[]>('/api/plans'),
-        api.get<TaskRow[]>('/api/tasks'),
-      ]);
+      plans = await api.get<PlanSummary[]>('/api/plans');
       error = null;
     } catch (e) {
       error = (e as Error).message;
@@ -34,25 +27,18 @@
   $effect(() => {
     void load();
     ensureTopics();
-    return onDataChange(() => {
-      void load();
-      void refreshTopics();
-    });
+    return onDataChange(() => void load());
   });
 
-  const byPlan = $derived(tasksByPlan(rows));
   const groups = $derived.by(() => {
-    const names = [...projects.map((p) => p.name)];
-    for (const p of plans) if (!names.includes(p.project)) names.push(p.project);
-    return names
-      .map((name) => ({
-        name,
-        plans: liveFirst(
-          plans.filter((p) => p.project === name),
-          $activity,
-        ),
-      }))
-      .filter((g) => g.plans.length);
+    const names = [...new Set(plans.map((p) => p.project))].sort();
+    return names.map((name) => ({
+      name,
+      plans: liveFirst(
+        plans.filter((p) => p.project === name),
+        $activity,
+      ),
+    }));
   });
   const taskTotal = $derived(plans.reduce((n, p) => n + p.task_count, 0));
   const doneTotal = $derived(plans.reduce((n, p) => n + p.done_count, 0));
@@ -89,7 +75,7 @@
       </h2>
       <div class="grid">
         {#each g.plans as p (p.id)}
-          <PlanCard plan={p} tasks={byPlan[p.id]} labels={$topicLabels} />
+          <PlanCard plan={p} labels={$topicLabels} />
         {/each}
       </div>
     {/each}

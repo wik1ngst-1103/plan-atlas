@@ -114,11 +114,14 @@ async fn plans(
     .await
 }
 
-async fn plan(State(s): State<AppState>, Path(id): Path<String>) -> ApiResult<Plan> {
+async fn plan(
+    State(s): State<AppState>,
+    Path(id): Path<String>,
+) -> ApiResult<crate::store::PlanDetail> {
     if !valid_id(&id) {
         return Err(ApiError::NotFound);
     }
-    blocking(move || match s.store.get_plan(&id) {
+    blocking(move || match s.store.plan_detail(&id) {
         Ok(Some(p)) => Ok(Json(p)),
         Ok(None) => Err(ApiError::NotFound),
         Err(e) => Err(ApiError::internal(e)),

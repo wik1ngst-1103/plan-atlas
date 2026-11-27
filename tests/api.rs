@@ -228,6 +228,60 @@ async fn read_endpoints() {
 }
 
 #[tokio::test]
+async fn plan_detail_includes_relations_and_summaries_include_tasks() {
+    let e = env();
+    let other = e
+        .paths
+        .plans
+        .join("auth-gateway")
+        .join("2026-11-24-audit.md");
+    std::fs::write(
+        &other,
+        "---\nid: PLAN-auth-gateway-002\nproject: auth-gateway\ntitle: Audit log\nrelated:\n  - { to: PLAN-auth-gateway-001, type: depends_on }\n---\n## 04. Task Breakdown\n",
+    )
+    .unwrap();
+    e.state
+        .store
+        .upsert_plan(&parse_plan(&std::fs::read(&other).unwrap(), &other))
+        .unwrap();
+
+    let (st, v) = call(
+        &e.app,
+        req("GET", &format!("/api/plans/{PLAN}"))
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK);
+    assert_eq!(v["id"], PLAN); // plan fields stay at the top level
+    assert!(v["sections"].is_array());
+    assert_eq!(
+        v["incoming"],
+        serde_json::json!([{ "from_id": "PLAN-auth-gateway-002", "from_title": "Audit log", "kind": "depends_on" }])
+    );
+    assert_eq!(v["outgoing_titles"], serde_json::json!({})); // PLAN-auth-gateway-000 is not indexed
+
+    let (_, v) = call(
+        &e.app,
+        req("GET", "/api/plans?project=auth-gateway")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    let p1 = v
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == PLAN)
+        .unwrap();
+    assert_eq!(
+        p1["tasks"][1],
+        serde_json::json!({ "id": "TASK-002", "name": "Token refresh", "status": "in_progress" })
+    );
+    assert!(p1["tasks"][0].get("body_md").is_none());
+}
+
+#[tokio::test]
 async fn topics_use_locale_labels() {
     let e = env();
     let (_, en) = call(

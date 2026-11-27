@@ -13,7 +13,9 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::plan::{RelationKind, Task};
+use std::collections::BTreeMap;
+
+use crate::plan::{Plan, RelationKind, Task, TaskStatus};
 use crate::taxonomy::Taxonomy;
 
 pub use events::{AgentView, EventKind, HookEvent, LiveTask, LogEntry, StepEvent, now_ms};
@@ -51,6 +53,37 @@ pub struct PlanSummary {
     pub done_count: u32,
     pub structured: bool,
     pub warnings_count: u32,
+    /// The plan's tasks in file order, without bodies (cards, live activity).
+    pub tasks: Vec<TaskBrief>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../web/src/lib/generated/")]
+pub struct TaskBrief {
+    pub id: String,
+    pub name: String,
+    pub status: TaskStatus,
+}
+
+/// A declared relation pointing at a plan, from another plan.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../web/src/lib/generated/")]
+pub struct IncomingRelation {
+    pub from_id: String,
+    pub from_title: String,
+    pub kind: RelationKind,
+}
+
+/// `GET /api/plans/{id}`: the plan plus what the plan page needs about its neighbours.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../web/src/lib/generated/")]
+pub struct PlanDetail {
+    #[serde(flatten)]
+    #[ts(flatten)]
+    pub plan: Plan,
+    pub incoming: Vec<IncomingRelation>,
+    /// Title of each plan this plan's `related` entries point to (when indexed).
+    pub outgoing_titles: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]

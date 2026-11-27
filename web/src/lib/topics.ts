@@ -1,6 +1,7 @@
 import { derived, get, writable } from 'svelte/store';
 import { api } from './api';
 import { locale, type Locale } from './i18n';
+import { onEvent } from './live';
 
 /** One entry of `GET /api/topics` (label/desc already in the requested locale). */
 export type Topic = {
@@ -35,13 +36,14 @@ export async function refreshTopics() {
   }
 }
 
-/** Load topics once per locale; reloads by itself when the locale changes. */
+/** Load topics once per locale; reloads by itself on a locale change or a finished re-index. */
 export function ensureTopics() {
   if (!watching) {
     watching = true;
     locale.subscribe((l) => {
       if (loadedFor !== null && loadedFor !== l) void refreshTopics();
     });
+    onEvent('index_ready', () => void refreshTopics());
   }
   if (loadedFor !== get(locale)) void refreshTopics();
 }

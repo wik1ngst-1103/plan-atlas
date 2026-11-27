@@ -1,6 +1,5 @@
 <script lang="ts">
   import type { PlanSummary } from '../lib/generated/PlanSummary';
-  import type { Task } from '../lib/generated/Task';
   import { t } from '../lib/i18n';
   import { activity } from '../lib/live';
   import { planStatus } from '../lib/plans';
@@ -9,18 +8,18 @@
   import TopicChip from './TopicChip.svelte';
 
   /** A plan as a big card: "📄 PLAN · project", progress, topics, and Claude's live work nested inside. */
-  let {
-    plan,
-    tasks = [],
-    labels = {},
-  }: { plan: PlanSummary; tasks?: Task[]; labels?: Record<string, string> } = $props();
+  let { plan, labels = {} }: { plan: PlanSummary; labels?: Record<string, string> } = $props();
 
   const active = $derived($activity.some((a) => a.plan_id === plan.id && a.agents.length > 0));
   const status = $derived(
-    planStatus(plan.done_count, plan.task_count, active || tasks.some((x) => x.status !== 'todo')),
+    planStatus(
+      plan.done_count,
+      plan.task_count,
+      active || plan.tasks.some((x) => x.status !== 'todo'),
+    ),
   );
   const pct = $derived(plan.task_count ? (plan.done_count / plan.task_count) * 100 : 0);
-  const names = $derived(Object.fromEntries(tasks.map((x) => [x.id, x.name])));
+  const names = $derived(Object.fromEntries(plan.tasks.map((x) => [x.id, x.name])));
 
   const go = () => navigate({ page: 'plan', plan: plan.id, tab: 'docs' });
   const click = (e: MouseEvent) => {

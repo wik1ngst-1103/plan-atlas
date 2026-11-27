@@ -4,10 +4,8 @@
   import Toc from '../components/Toc.svelte';
   import TopicChip from '../components/TopicChip.svelte';
   import { ApiError, api } from '../lib/api';
-  import type { Graph } from '../lib/generated/Graph';
   import type { Plan } from '../lib/generated/Plan';
-  import type { PlanSummary } from '../lib/generated/PlanSummary';
-  import type { RelationKind } from '../lib/generated/RelationKind';
+  import type { PlanDetail } from '../lib/generated/PlanDetail';
   import type { TaskRow as TaskItem } from '../lib/generated/TaskRow';
   import type { TaskStatus } from '../lib/generated/TaskStatus';
   import { locale, t } from '../lib/i18n';
@@ -16,32 +14,23 @@
   import { formatDate, planStatus, uniqueAnchors } from '../lib/plans';
   import { onDataChange } from '../lib/refetch';
   import { route, type PlanTab } from '../lib/router';
-  import { ensureTopics, refreshTopics, topicLabels } from '../lib/topics';
+  import { ensureTopics, topicLabels } from '../lib/topics';
 
   const id = $derived($route.page === 'plan' ? $route.plan : '');
   const tab = $derived<PlanTab>($route.page === 'plan' ? $route.tab : 'docs');
 
-  let plan = $state<Plan | null>(null);
-  let titles = $state<Record<string, string>>({});
-  let incoming = $state<{ from: string; kind: RelationKind }[]>([]);
+  let plan = $state<PlanDetail | null>(null);
   let error = $state<string | null>(null);
   let notFound = $state(false);
   let moveError = $state<string | null>(null);
 
   async function load(planId: string) {
     try {
-      const [p, summaries, graph] = await Promise.all([
-        api.get<Plan>(`/api/plans/${encodeURIComponent(planId)}`),
-        api.get<PlanSummary[]>('/api/plans'),
-        api.get<Graph>('/api/graph'),
-      ]);
+      // One request: the detail carries related plans' titles in both directions.
+      const p = await api.get<PlanDetail>(`/api/plans/${encodeURIComponent(planId)}`);
       if (planId !== id) return;
       plan = p;
       rememberPlan(p.id, p.project, p.title);
-      titles = Object.fromEntries(summaries.map((s) => [s.id, s.title]));
-      incoming = graph.edges.flatMap((e) =>
-        e.kind.type === 'declared' && e.to === planId ? [{ from: e.from, kind: e.kind.value }] : [],
-      );
       error = null;
       notFound = false;
     } catch (e) {
@@ -59,10 +48,7 @@
     moveError = null;
     void load(planId);
     ensureTopics();
-    return onDataChange(() => {
-      void load(planId);
-      void refreshTopics();
-    }, planId);
+    return onDataChange(() => void load(planId), planId);
   });
 
   const sections = $derived(plan ? uniqueAnchors(plan.sections) : []);
@@ -85,8 +71,16 @@
   const relations = $derived(
     plan
       ? [
-          ...plan.related.map((r) => ({ key: `rel.out.${r.kind}`, other: r.to })),
-          ...incoming.map((r) => ({ key: `rel.in.${r.kind}`, other: r.from })),
+          ...plan.related.map((r) => ({
+            key: `rel.out.${r.kind}`,
+            other: r.to,
+            title: plan!.outgoing_titles[r.to] ?? r.to,
+          })),
+          ...plan.incoming.map((r) => ({
+            key: `rel.in.${r.kind}`,
+            other: r.from_id,
+            title: r.from_title,
+          })),
         ]
       : [],
   );
@@ -100,10 +94,11 @@
   async function move(item: TaskItem, next: TaskStatus) {
     moveError = null;
     try {
-      plan = await api.patch<Plan>(
+      const updated = await api.patch<Plan>(
         `/api/plans/${encodeURIComponent(item.plan_id)}/tasks/${encodeURIComponent(item.task.id)}`,
         { status: next },
       );
+      if (plan && updated.id === plan.id) plan = { ...plan, ...updated };
     } catch (e) {
       moveError = $t('plan.moveFailed', { message: (e as Error).message });
     }
@@ -180,7 +175,7 @@
           {@const s = around(r.key)}
           <div>
             🔗 {s.before}<a href="#/plan/{encodeURIComponent(r.other)}/docs">
-              {titles[r.other] ?? r.other}
+              {r.title}
             </a>{s.after}
           </div>
         {/each}

@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use plan_atlas::plan::{Plan, Relation, RelationKind, Section, Task, TaskStatus};
-use plan_atlas::store::{PlanFilter, Store, TaskFilter};
+use plan_atlas::store::{IncomingRelation, PlanFilter, Store, TaskBrief, TaskFilter};
 use plan_atlas::taxonomy::Taxonomy;
 use rusqlite::Connection;
 use tempfile::TempDir;
@@ -135,6 +135,78 @@ fn upsert_then_get_roundtrip() {
         Path::new("/plans/auth-001.md")
     );
     assert_eq!(s.plan_ids_for_project("demo").unwrap(), vec!["auth-001"]);
+}
+
+#[test]
+fn summaries_carry_task_briefs_in_order() {
+    let (_d, s) = store();
+    s.upsert_plan(&plan("auth-001", "demo", &[], &[])).unwrap();
+    let plans = s.list_plans(&PlanFilter::default()).unwrap();
+    assert_eq!(
+        plans[0].tasks,
+        vec![
+            TaskBrief {
+                id: "T1".into(),
+                name: "First".into(),
+                status: TaskStatus::Done,
+            },
+            TaskBrief {
+                id: "T2".into(),
+                name: "Second".into(),
+                status: TaskStatus::Todo,
+            },
+        ]
+    );
+}
+
+#[test]
+fn plan_detail_has_both_relation_directions() {
+    let (_d, s) = store();
+    s.upsert_plan(&plan(
+        "a-001",
+        "demo",
+        &[],
+        &[("missing-001", RelationKind::RelatesTo)],
+    ))
+    .unwrap();
+    s.upsert_plan(&plan(
+        "b-001",
+        "demo",
+        &[],
+        &[("a-001", RelationKind::DependsOn)],
+    ))
+    .unwrap();
+    s.upsert_plan(&plan(
+        "c-001",
+        "demo",
+        &[],
+        &[("a-001", RelationKind::Extends)],
+    ))
+    .unwrap();
+
+    let a = s.plan_detail("a-001").unwrap().unwrap();
+    assert_eq!(a.plan.id, "a-001");
+    assert_eq!(
+        a.incoming,
+        vec![
+            IncomingRelation {
+                from_id: "b-001".into(),
+                from_title: "Title b-001".into(),
+                kind: RelationKind::DependsOn,
+            },
+            IncomingRelation {
+                from_id: "c-001".into(),
+                from_title: "Title c-001".into(),
+                kind: RelationKind::Extends,
+            },
+        ]
+    );
+    assert!(a.outgoing_titles.is_empty()); // target not indexed
+
+    let b = s.plan_detail("b-001").unwrap().unwrap();
+    assert!(b.incoming.is_empty());
+    assert_eq!(b.outgoing_titles["a-001"], "Title a-001");
+    assert!(s.plan_detail("nope").unwrap().is_none());
 }
 
 #[test]

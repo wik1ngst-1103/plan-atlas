@@ -4,7 +4,6 @@ import type { Model } from './generated/Model';
 import type { PlanSummary } from './generated/PlanSummary';
 import type { Section } from './generated/Section';
 import type { Task } from './generated/Task';
-import type { TaskRow } from './generated/TaskRow';
 
 export type PlanStatus = 'todo' | 'in_progress' | 'done';
 
@@ -60,13 +59,6 @@ export function formatDate(iso: string, l: Locale): string {
     month: 'short',
     year: 'numeric',
   });
-}
-
-/** plan id → its tasks, from `/api/tasks` rows. */
-export function tasksByPlan(rows: TaskRow[]): Record<string, Task[]> {
-  const out: Record<string, Task[]> = {};
-  for (const r of rows) (out[r.plan_id] ??= []).push(r.task);
-  return out;
 }
 
 /** Plans with Claude working on them first (more active tasks first); otherwise keep order. */

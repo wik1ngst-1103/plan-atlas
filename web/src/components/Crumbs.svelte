@@ -1,20 +1,12 @@
 <script lang="ts">
-  import { planProject, planTitle } from '../lib/planProject';
+  import { knownPlans } from '../lib/planProject';
   import { t } from '../lib/i18n';
   import { route } from '../lib/router';
 
-  let project = $state<string | null>(null);
-  let title = $state<string | null>(null);
-  $effect(() => {
-    const r = $route;
-    project = null;
-    title = null;
-    if (r.page !== 'plan') return;
-    let live = true;
-    void planProject(r.plan).then((p) => live && (project = p));
-    void planTitle(r.plan).then((tt) => live && (title = tt));
-    return () => (live = false);
-  });
+  // The Plan page loads the plan and records it; the breadcrumb only reads that.
+  const info = $derived($route.page === 'plan' ? $knownPlans[$route.plan] : undefined);
+  const project = $derived(info?.project ?? null);
+  const title = $derived(info?.title ?? null);
 </script>
 
 <nav class="crumbs" aria-label="Breadcrumb">

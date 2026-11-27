@@ -4,7 +4,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { drawer } from '../lib/drawer';
 import type { LiveTask } from '../lib/generated/LiveTask';
 import type { PlanSummary } from '../lib/generated/PlanSummary';
-import type { Task } from '../lib/generated/Task';
 import { setLocale } from '../lib/i18n';
 import { activity } from '../lib/live';
 import PlanCard from './PlanCard.svelte';
@@ -19,22 +18,11 @@ const plan: PlanSummary = {
   done_count: 1,
   structured: true,
   warnings_count: 0,
+  tasks: [
+    { id: 'TASK-001', name: 'Auth service', status: 'done' },
+    { id: 'TASK-002', name: 'Token Management', status: 'in_progress' },
+  ],
 };
-const task = (id: string, name: string, status: Task['status']): Task => ({
-  id,
-  name,
-  complexity: 3,
-  model: null,
-  effort: null,
-  depends_on: [],
-  status,
-  tags: [],
-  body_md: '',
-});
-const tasks = [
-  task('TASK-001', 'Auth service', 'done'),
-  task('TASK-002', 'Token Management', 'in_progress'),
-];
 const live: LiveTask = {
   plan_id: 'PLAN-auth-001',
   task_id: 'TASK-002',
@@ -62,7 +50,6 @@ describe('PlanCard', () => {
     setLocale('en');
     const { container } = render(PlanCard, {
       plan,
-      tasks,
       labels: { 'tech/jwt': 'JWT login token' },
     });
     expect(screen.getByText('📄 Plan · auth-gateway')).toBeTruthy();
@@ -90,7 +77,7 @@ describe('PlanCard', () => {
   it('live nest speaks Vietnamese with "đang"', async () => {
     setLocale('vi');
     activity.set([live]);
-    const { container } = render(PlanCard, { plan, tasks });
+    const { container } = render(PlanCard, { plan });
     expect(container.querySelector('.nag')?.textContent).toMatch(
       /Trợ lý lập trình\s+📖\s+đang đọc token\.rs/,
     );
@@ -99,7 +86,7 @@ describe('PlanCard', () => {
   it('clicking a live task opens its drawer instead of the plan', async () => {
     location.hash = '#/home';
     activity.set([live]);
-    render(PlanCard, { plan, tasks });
+    render(PlanCard, { plan });
     await fireEvent.click(screen.getByText('◐ TASK-002 · Token Management'));
     expect(location.hash).toBe('#/home');
     expect(get(drawer)).toEqual([{ type: 'task', plan: 'PLAN-auth-001', task: 'TASK-002' }]);
@@ -107,7 +94,7 @@ describe('PlanCard', () => {
 
   it('clicking the card opens the plan', async () => {
     location.hash = '#/home';
-    const { container } = render(PlanCard, { plan, tasks });
+    const { container } = render(PlanCard, { plan });
     await fireEvent.click(container.querySelector('h3')!);
     expect(location.hash).toBe('#/plan/PLAN-auth-001/docs');
   });

@@ -6,10 +6,10 @@ use rusqlite::{Connection, OptionalExtension, ToSql, params};
 
 use super::search::REF_SEP;
 use super::{
-    Edge, EdgeKind, Graph, PlanFilter, PlanSummary, ProjectSummary, Store, TaskFilter, TaskRow,
-    TopicCount,
+    Edge, EdgeKind, Graph, IncomingRelation, PlanDetail, PlanFilter, PlanSummary, ProjectSummary,
+    Store, TaskBrief, TaskFilter, TaskRow, TopicCount,
 };
-use crate::plan::{Plan, RelationKind, Section, Task};
+use crate::plan::{Plan, RelationKind, Section, Task, TaskStatus};
 
 fn path_str(p: &Path) -> String {
     p.to_string_lossy().into_owned()
@@ -28,6 +28,15 @@ fn kind_from_str(s: &str) -> RelationKind {
         "depends_on" => RelationKind::DependsOn,
         "extends" => RelationKind::Extends,
         _ => RelationKind::RelatesTo,
+    }
+}
+
+fn status_from_str(s: &str) -> TaskStatus {
+    match s {
+        "in_progress" => TaskStatus::InProgress,
+        "review" => TaskStatus::Review,
+        "done" => TaskStatus::Done,
+        _ => TaskStatus::Todo,
     }
 }
 
@@ -87,9 +96,26 @@ fn query_summaries(
                 task_count: r.get(6)?,
                 done_count: r.get(7)?,
                 tags: vec![],
+                tasks: vec![],
             })
         })?
         .collect::<rusqlite::Result<_>>()?;
+    let mut briefs: HashMap<String, Vec<TaskBrief>> = HashMap::new();
+    let mut stmt =
+        conn.prepare("SELECT plan_id, id, name, status FROM tasks ORDER BY plan_id, pos")?;
+    for r in stmt.query_map([], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            TaskBrief {
+                id: r.get(1)?,
+                name: r.get(2)?,
+                status: status_from_str(&r.get::<_, String>(3)?),
+            },
+        ))
+    })? {
+        let (plan_id, brief) = r?;
+        briefs.entry(plan_id).or_default().push(brief);
+    }
     let mut tags: HashMap<String, Vec<String>> = HashMap::new();
     let mut stmt = conn.prepare("SELECT plan_id, tag FROM plan_tags ORDER BY rowid")?;
     for r in stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))? {
@@ -98,6 +124,7 @@ fn query_summaries(
     }
     for row in &mut rows {
         row.tags = tags.remove(&row.id).unwrap_or_default();
+        row.tasks = briefs.remove(&row.id).unwrap_or_default();
     }
     Ok(rows)
 }
@@ -345,6 +372,40 @@ impl Store {
             .query_row("SELECT json FROM plans WHERE id = ?1", [id], |r| r.get(0))
             .optional()?;
         Ok(json.map(|j| serde_json::from_str(&j)).transpose()?)
+    }
+
+    /// The plan with titles of related plans in both directions (targeted queries, no graph).
+    pub fn plan_detail(&self, id: &str) -> Result<Option<PlanDetail>> {
+        let Some(plan) = self.get_plan(id)? else {
+            return Ok(None);
+        };
+        let conn = self.conn();
+        let incoming = conn
+            .prepare(
+                "SELECT r.from_id, p.title, r.kind FROM relations r
+                 JOIN plans p ON p.id = r.from_id
+                 WHERE r.to_id = ?1 ORDER BY r.from_id, r.kind",
+            )?
+            .query_map([id], |r| {
+                Ok(IncomingRelation {
+                    from_id: r.get(0)?,
+                    from_title: r.get(1)?,
+                    kind: kind_from_str(&r.get::<_, String>(2)?),
+                })
+            })?
+            .collect::<rusqlite::Result<_>>()?;
+        let outgoing_titles = conn
+            .prepare(
+                "SELECT p.id, p.title FROM relations r
+                 JOIN plans p ON p.id = r.to_id WHERE r.from_id = ?1",
+            )?
+            .query_map([id], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        Ok(Some(PlanDetail {
+            plan,
+            incoming,
+            outgoing_titles,
+        }))
     }
 
     pub fn list_tasks(&self, f: &TaskFilter) -> Result<Vec<TaskRow>> {

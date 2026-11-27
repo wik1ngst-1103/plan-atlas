@@ -2,7 +2,7 @@
   import { api } from '../lib/api';
   import type { ProjectSummary } from '../lib/generated/ProjectSummary';
   import { t } from '../lib/i18n';
-  import { onEvent } from '../lib/live';
+  import { onDataChange } from '../lib/refetch';
   import { projectColor as color } from '../lib/projectColor';
   import { route } from '../lib/router';
 
@@ -15,8 +15,7 @@
 
   $effect(() => {
     void load();
-    const offs = [onEvent('plan_changed', load), onEvent('index_ready', load)];
-    return () => offs.forEach((off) => off());
+    return onDataChange(() => void load());
   });
 </script>
 
