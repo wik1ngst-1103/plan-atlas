@@ -3,6 +3,7 @@
   import { locale, setLocale, t } from '../lib/i18n';
   import { activity } from '../lib/live';
   import Crumbs from './Crumbs.svelte';
+  import Search from './Search.svelte';
 
   const working = $derived(new Set($activity.map((a) => `${a.plan_id}/${a.task_id}`)).size);
 </script>
@@ -10,8 +11,7 @@
 <header class="top">
   <div class="logo">🗺 {$t('app.name')}</div>
   <Crumbs />
-  <!-- Task 16 mounts <Search /> here -->
-  <div class="search-slot" id="search-slot"></div>
+  <div class="search-slot"><Search /></div>
   {#if working > 0}
     <button class="livepill" onclick={() => drawer.open({ type: 'activity' })}>
       <span class="live"></span>{working === 1
@@ -57,9 +57,6 @@
     flex: none;
     width: min(440px, 42vw);
   }
-  .search-slot:empty {
-    display: none;
-  }
   .livepill {
     display: flex;
     align-items: center;
@@ -100,9 +97,6 @@
     .search-slot {
       width: 100%;
       order: 3;
-    }
-    .search-slot:empty {
-      display: none;
     }
   }
 </style>
