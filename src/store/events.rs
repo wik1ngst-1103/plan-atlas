@@ -219,8 +219,10 @@ impl Store {
     pub fn prune_events(&self, older_than_days: u32) -> Result<usize> {
         let cutoff = now_ms() - i64::from(older_than_days) * 86_400_000;
         let conn = self.conn();
-        let n = conn.execute("DELETE FROM events WHERE at < ?1", [cutoff])?;
-        conn.execute("DELETE FROM sessions WHERE updated_at < ?1", [cutoff])?;
+        let tx = super::immediate(&conn)?;
+        let n = tx.execute("DELETE FROM events WHERE at < ?1", [cutoff])?;
+        tx.execute("DELETE FROM sessions WHERE updated_at < ?1", [cutoff])?;
+        tx.commit()?;
         Ok(n)
     }
 

@@ -1,4 +1,4 @@
-CREATE TABLE plans (
+CREATE TABLE IF NOT EXISTS plans (
     id TEXT PRIMARY KEY,
     project TEXT NOT NULL,
     title TEXT NOT NULL,
@@ -9,9 +9,9 @@ CREATE TABLE plans (
     structured INTEGER NOT NULL,
     warnings_count INTEGER NOT NULL
 );
-CREATE INDEX plans_project ON plans(project);
+CREATE INDEX IF NOT EXISTS plans_project ON plans(project);
 
-CREATE TABLE tasks (
+CREATE TABLE IF NOT EXISTS tasks (
     plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
     id TEXT NOT NULL,
     pos INTEGER NOT NULL,
@@ -22,23 +22,23 @@ CREATE TABLE tasks (
     PRIMARY KEY (plan_id, id)
 );
 
-CREATE TABLE plan_tags (
+CREATE TABLE IF NOT EXISTS plan_tags (
     plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
     tag TEXT NOT NULL,
     PRIMARY KEY (plan_id, tag)
 );
-CREATE INDEX plan_tags_tag ON plan_tags(tag);
+CREATE INDEX IF NOT EXISTS plan_tags_tag ON plan_tags(tag);
 
-CREATE TABLE task_tags (
+CREATE TABLE IF NOT EXISTS task_tags (
     plan_id TEXT NOT NULL,
     task_id TEXT NOT NULL,
     tag TEXT NOT NULL,
     PRIMARY KEY (plan_id, task_id, tag),
     FOREIGN KEY (plan_id, task_id) REFERENCES tasks(plan_id, id) ON DELETE CASCADE
 );
-CREATE INDEX task_tags_tag ON task_tags(tag);
+CREATE INDEX IF NOT EXISTS task_tags_tag ON task_tags(tag);
 
-CREATE TABLE relations (
+CREATE TABLE IF NOT EXISTS relations (
     from_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
     to_id TEXT NOT NULL,
     kind TEXT NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE relations (
 );
 
 -- kind: 'plan' (ref = plan id) or 'task' (ref = plan id + US + task id)
-CREATE VIRTUAL TABLE search_fts USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS search_fts USING fts5(
     kind UNINDEXED,
     ref UNINDEXED,
     title,
@@ -55,8 +55,8 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
 );
 
 -- rowids of a plan's search_fts rows, so they can be deleted without scanning the FTS table
-CREATE TABLE fts_rows (
+CREATE TABLE IF NOT EXISTS fts_rows (
     plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
     fts_rowid INTEGER NOT NULL
 );
-CREATE INDEX fts_rows_plan ON fts_rows(plan_id);
+CREATE INDEX IF NOT EXISTS fts_rows_plan ON fts_rows(plan_id);

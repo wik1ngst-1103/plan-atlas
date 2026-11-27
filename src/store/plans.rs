@@ -7,7 +7,7 @@ use rusqlite::{Connection, OptionalExtension, ToSql, params};
 use super::search::REF_SEP;
 use super::{
     Edge, EdgeKind, Graph, IncomingRelation, PlanDetail, PlanFilter, PlanSummary, ProjectSummary,
-    Store, TaskBrief, TaskFilter, TaskRow, TopicCount,
+    Store, TaskBrief, TaskFilter, TaskRow, TopicCount, immediate,
 };
 use crate::plan::{Plan, RelationKind, Section, Task, TaskStatus};
 
@@ -161,7 +161,7 @@ impl Store {
     /// Insert or replace a plan. No-op when id, hash and path are unchanged.
     pub fn upsert_plan(&self, plan: &Plan) -> Result<()> {
         let conn = self.conn();
-        let tx = conn.unchecked_transaction()?;
+        let tx = immediate(&conn)?;
         self.upsert_in(&tx, plan)?;
         tx.commit()?;
         Ok(())
@@ -170,7 +170,7 @@ impl Store {
     /// Upsert many plans inside one transaction (all-or-nothing).
     pub fn upsert_plans(&self, plans: &[Plan]) -> Result<()> {
         let conn = self.conn();
-        let tx = conn.unchecked_transaction()?;
+        let tx = immediate(&conn)?;
         for plan in plans {
             self.upsert_in(&tx, plan)?;
         }
@@ -317,7 +317,7 @@ impl Store {
             })
             .optional()?;
         if let Some(id) = id {
-            let tx = conn.unchecked_transaction()?;
+            let tx = immediate(&conn)?;
             delete_plan(&tx, &id)?;
             tx.commit()?;
         }

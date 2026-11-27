@@ -452,3 +452,38 @@ fn tasks_inherit_plan_topics() {
     assert_eq!(count("domain/security"), (1, 2));
     assert_eq!(count("tech/jwt"), (2, 3));
 }
+
+#[test]
+fn concurrent_first_open_creates_schema_once() {
+    for _ in 0..5 {
+        let dir = tempfile::tempdir().unwrap();
+        let db = dir.path().join("atlas.db");
+        let barrier = Arc::new(std::sync::Barrier::new(8));
+        let handles: Vec<_> = (0..8)
+            .map(|_| {
+                let (db, barrier) = (db.clone(), barrier.clone());
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    Store::open(&db, Arc::new(Taxonomy::embedded_default())).map(|_| ())
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap().expect("every opener succeeds");
+        }
+        let conn = Connection::open(&db).unwrap();
+        let v: i64 = conn
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(v, 2);
+    }
+}
+
+#[test]
+fn schema_v1_script_is_idempotent() {
+    let sql = include_str!("../src/store/schema.sql");
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(sql).unwrap();
+    conn.execute_batch(sql)
+        .expect("re-running the schema is harmless");
+}

@@ -9,7 +9,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use anyhow::{Context, Result, bail};
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -26,6 +26,32 @@ const SCHEMA_V1: &str = include_str!("schema.sql");
 /// hook process) can both run it.
 const MIGRATE_V2: &str = include_str!("schema_v2.sql");
 const SCHEMA_VERSION: i64 = 2;
+
+/// A write transaction that takes SQLite's write lock up front, so it waits
+/// on `busy_timeout` instead of failing to upgrade a read lock mid-way.
+pub(crate) fn immediate(conn: &Connection) -> rusqlite::Result<Transaction<'_>> {
+    Transaction::new_unchecked(conn, TransactionBehavior::Immediate)
+}
+
+/// Switch to WAL. Switching a fresh database can report SQLITE_BUSY without
+/// waiting on `busy_timeout` while another process (server vs hook) does the
+/// same, so retry briefly.
+fn enable_wal(conn: &Connection) -> rusqlite::Result<()> {
+    let mut tries = 0;
+    loop {
+        // journal_mode returns a row; in-memory databases answer "memory".
+        match conn.pragma_update_and_check(None, "journal_mode", "WAL", |r| r.get::<_, String>(0)) {
+            Ok(_) => return Ok(()),
+            Err(rusqlite::Error::SqliteFailure(e, _))
+                if e.code == rusqlite::ErrorCode::DatabaseBusy && tries < 100 =>
+            {
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
 
 pub struct Store {
     conn: Mutex<Connection>,
@@ -161,25 +187,27 @@ impl Store {
     }
 
     fn init(conn: Connection, tax: Arc<Taxonomy>) -> Result<Store> {
-        // journal_mode returns a row; in-memory databases answer "memory".
-        let _mode: String =
-            conn.pragma_update_and_check(None, "journal_mode", "WAL", |r| r.get(0))?;
+        // First, so concurrent openers wait instead of failing with SQLITE_BUSY.
         conn.pragma_update(None, "busy_timeout", 2000)?;
+        enable_wal(&conn).context("enabling WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?; // safe with WAL; avoids an fsync per commit
         conn.pragma_update(None, "foreign_keys", "ON")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
-        match version {
-            0 | 1 => {
-                let tx = conn.unchecked_transaction()?;
+        if version < SCHEMA_VERSION {
+            // Server and hook process may both create the database: take the
+            // write lock first, then re-read the version under it.
+            let tx = immediate(&conn).context("locking for migration")?;
+            let version: i64 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
+            if version < SCHEMA_VERSION {
                 if version == 0 {
                     tx.execute_batch(SCHEMA_V1)?;
                 }
                 tx.execute_batch(MIGRATE_V2)?;
                 tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
-                tx.commit()?;
             }
-            SCHEMA_VERSION => {}
-            v => bail!("database schema version {v} is newer than supported ({SCHEMA_VERSION})"),
+            tx.commit()?;
+        } else if version > SCHEMA_VERSION {
+            bail!("database schema version {version} is newer than supported ({SCHEMA_VERSION})");
         }
         Ok(Store {
             conn: Mutex::new(conn),
