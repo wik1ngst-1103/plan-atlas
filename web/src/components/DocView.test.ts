@@ -44,6 +44,10 @@ describe('DocView', () => {
     expect(h2.querySelector('.marker')?.textContent).toBe('01');
     expect(h2.textContent).toContain('Overview');
     expect(h2.querySelector('small')?.textContent).toBe('Tổng quan');
+    // Focusable for TOC jumps; the copy-link button sits beside the heading, not in its name.
+    expect(h2.getAttribute('tabindex')).toBe('-1');
+    expect(h2.querySelector('button')).toBeNull();
+    expect(h2.parentElement?.querySelector('button.copy')).toBeTruthy();
     setLocale('en');
   });
 

@@ -45,6 +45,8 @@
   };
 
   let copied = $state<string | null>(null);
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+  $effect(() => () => clearTimeout(copiedTimer));
   async function copyLink(anchor: string) {
     const url = `${location.origin}${location.pathname}${formatRoute({
       page: 'plan',
@@ -56,7 +58,8 @@
       await navigator.clipboard.writeText(url);
       copied = anchor;
       toast($t('doc.linkCopied'));
-      setTimeout(() => (copied = copied === anchor ? null : copied), 1600);
+      clearTimeout(copiedTimer);
+      copiedTimer = setTimeout(() => (copied = null), 1600);
     } catch {
       toast($t('doc.linkCopyFailed'), { error: true });
     }
@@ -102,24 +105,26 @@
   {@const p = pathHeading(s.title)}
   {#if p}
     {@const [dir, base] = splitPath(p.path)}
-    <h3 id={s.anchor} class="path">
-      <span class="fileicon">
-        <Icon name={p.path.endsWith('/') ? 'folder' : 'file'} size={16} />
-      </span>
-      <span class="ptext">
-        {#if p.label}<span class="plabel">{p.label}</span>{/if}
-        <code class="pname">
-          <span class="dir">{dir}</span><wbr /><span class="base">{base}</span>
-        </code>
-        {#if p.note}<span class="pnote">{p.note}</span>{/if}
-      </span>
+    <div class="hrow h3row path">
+      <h3 id={s.anchor} class="path" tabindex="-1">
+        <span class="fileicon">
+          <Icon name={p.path.endsWith('/') ? 'folder' : 'file'} size={16} />
+        </span>
+        <span class="ptext">
+          {#if p.label}<span class="plabel">{p.label}</span>{/if}
+          <code class="pname">
+            <span class="dir">{dir}</span><wbr /><span class="base">{base}</span>
+          </code>
+          {#if p.note}<span class="pnote">{p.note}</span>{/if}
+        </span>
+      </h3>
       {@render linkButton(s.anchor)}
-    </h3>
+    </div>
   {:else}
-    <h3 id={s.anchor}>
-      <span class="htext">{s.title}</span>
+    <div class="hrow h3row">
+      <h3 id={s.anchor} tabindex="-1"><span class="htext">{s.title}</span></h3>
       {@render linkButton(s.anchor)}
-    </h3>
+    </div>
   {/if}
   {@render body(s)}
   {#each s.children as c (c.anchor)}
@@ -131,18 +136,20 @@
   {#each sections as s (s.anchor)}
     {@const std = standardSection(s.title)}
     <section class="sec" class:std={!!std}>
-      <h2 id={s.anchor}>
-        {#if std}
-          <span class="marker num" aria-hidden="true">{std.n}</span>
-        {:else}
-          <span class="marker" aria-hidden="true"><Icon name="hash" size={15} /></span>
-        {/if}
-        <span class="htext">
-          {#if std}<span class="sr">{std.n}. </span>{std.name}{:else}{s.title}{/if}
-          {#if localName(s.title)}<small>{localName(s.title)}</small>{/if}
-        </span>
+      <div class="hrow h2row">
+        <h2 id={s.anchor} tabindex="-1">
+          {#if std}
+            <span class="marker num" aria-hidden="true">{std.n}</span>
+          {:else}
+            <span class="marker" aria-hidden="true"><Icon name="hash" size={15} /></span>
+          {/if}
+          <span class="htext">
+            {#if std}<span class="sr">{std.n}. </span>{std.name}{:else}{s.title}{/if}
+            {#if localName(s.title)}<small>{localName(s.title)}</small>{/if}
+          </span>
+        </h2>
         {@render linkButton(s.anchor)}
-      </h2>
+      </div>
       {@render body(s)}
       {#if showTasks(s)}
         <p class="hint">{$t('plan.taskHint')}</p>
@@ -192,7 +199,30 @@
     line-height: 1.3;
     font-weight: 650;
     letter-spacing: -0.015em;
+    margin: 0;
+  }
+  /* A heading and its copy-link button side by side (the button stays out of its name). */
+  .hrow {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .hrow > :is(h2, h3) {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .h2row {
     margin: 0 0 18px;
+  }
+  .h3row {
+    margin: 40px 0 12px;
+  }
+  .h3row.path {
+    margin-top: 44px;
+  }
+  h2:focus,
+  h3:focus {
+    outline: none;
   }
   .marker {
     flex: none;
@@ -244,13 +274,12 @@
     line-height: 1.4;
     font-weight: 620;
     letter-spacing: -0.01em;
-    margin: 40px 0 12px;
+    margin: 0;
   }
   h3.path {
     gap: 10px;
     font-size: 16px;
     font-weight: 500;
-    margin-top: 44px;
   }
   .fileicon {
     flex: none;
@@ -318,11 +347,13 @@
     opacity: 0;
     transition: opacity 0.15s ease;
   }
-  h2 .copy {
+  .h2row .copy {
     margin-top: 2px;
   }
-  h2:hover .copy,
-  h3:hover .copy,
+  .h3row .copy {
+    margin-top: -1px;
+  }
+  .hrow:hover .copy,
   .copy:focus-visible,
   .copy.done {
     opacity: 1;
