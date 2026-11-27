@@ -26,7 +26,7 @@ let hooked = false;
 /**
  * Markdown → sanitized HTML. No styles, forms or embeds; remote images are
  * replaced by their alt text (no tracking pixels). External links open in a
- * new tab.
+ * new tab. Tables come wrapped in `div.table-wrap`.
  */
 export function renderMarkdown(md: string): string {
   if (!hooked) {
@@ -43,5 +43,17 @@ export function renderMarkdown(md: string): string {
     });
   }
   const html = marked.parse(md, { async: false, gfm: true });
-  return DOMPurify.sanitize(html, { FORBID_TAGS, FORBID_ATTR });
+  const clean = DOMPurify.sanitize(html, { FORBID_TAGS, FORBID_ATTR });
+  if (!clean.includes('<table')) return clean;
+  // After sanitizing, so the wrapper is ours: wide tables scroll inside it, not the page.
+  // Done on the parsed tree (never by string edits, which could land inside an attribute).
+  const tpl = document.createElement('template');
+  tpl.innerHTML = clean;
+  for (const table of tpl.content.querySelectorAll('table')) {
+    const wrap = document.createElement('div');
+    wrap.className = 'table-wrap';
+    table.replaceWith(wrap);
+    wrap.append(table);
+  }
+  return tpl.innerHTML;
 }

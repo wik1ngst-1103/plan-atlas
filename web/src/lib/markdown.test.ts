@@ -49,3 +49,19 @@ describe('renderMarkdown sanitizing', () => {
     expect(html).toContain('src="data:image/png;base64,iVBORw0KGgo="');
   });
 });
+
+describe('renderMarkdown tables', () => {
+  it('wraps tables so they scroll inside their own box', () => {
+    const html = renderMarkdown('| a | b |\n|---|---|\n| 1 | 2 |');
+    expect(html).toMatch(/^<div class="table-wrap"><table>/);
+    expect(html).toContain('</table></div>');
+  });
+
+  it('does not touch table-like text inside attributes', () => {
+    const html = renderMarkdown('<a href="#x" title="<table> onmouseover=alert(1)">t</a>');
+    expect(html).not.toContain('table-wrap');
+    const box = document.createElement('div');
+    box.innerHTML = html;
+    expect(box.querySelector('a')?.getAttributeNames().sort()).toEqual(['href', 'title']);
+  });
+});
