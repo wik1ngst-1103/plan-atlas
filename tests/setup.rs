@@ -4,7 +4,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use plan_atlas::setup::{McpStatus, SKILL_TEMPLATE, install, merge_hooks, render_skill, uninstall};
+use plan_atlas::setup::{
+    McpStatus, SKILL_TEMPLATE, install, is_ephemeral_exe, merge_hooks, render_skill, uninstall,
+};
 use plan_atlas::taxonomy::Taxonomy;
 use serde_json::{Value, json};
 
@@ -459,4 +461,43 @@ fn setup_does_not_overwrite_invalid_config() {
         .assert()
         .success();
     assert_eq!(fs::read_to_string(atlas.join("config.toml")).unwrap(), bad);
+}
+
+#[test]
+fn ephemeral_exe_detection() {
+    let temp = Path::new("/tmp");
+    for p in [
+        "/home/u/.npm/_npx/3f2a/node_modules/plan-atlas/bin/plan-atlas",
+        r"C:\Users\u\AppData\Local\npm-cache\_npx\3f2a\node_modules\plan-atlas.exe",
+        "/tmp/plan-atlas-xyz/plan-atlas",
+    ] {
+        assert!(is_ephemeral_exe(Path::new(p), temp), "{p}");
+    }
+    for p in [
+        "/usr/local/bin/plan-atlas",
+        "/home/u/.cargo/bin/plan-atlas",
+        "/usr/lib/node_modules/plan-atlas/bin/plan-atlas",
+        "/opt/homebrew/bin/plan-atlas",
+        "/tmpfoo/plan-atlas",
+    ] {
+        assert!(!is_ephemeral_exe(Path::new(p), temp), "{p}");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn cli_setup_refuses_binary_in_temp_dir() {
+    let dir = tempfile::tempdir().unwrap();
+    let copy = dir.path().join("plan-atlas");
+    fs::copy(assert_cmd::cargo::cargo_bin("plan-atlas"), &copy).unwrap();
+    assert_cmd::Command::new(&copy)
+        .args(["setup", "--yes"])
+        .env("CLAUDE_CONFIG_DIR", dir.path().join("claude"))
+        .env("PLAN_ATLAS_HOME", dir.path().join("atlas"))
+        .env("PATH", dir.path().join("empty-path"))
+        .env("TMPDIR", dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("npm i -g plan-atlas"));
+    assert!(!dir.path().join("claude").exists());
 }

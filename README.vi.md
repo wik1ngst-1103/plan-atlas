@@ -54,7 +54,7 @@ powershell -ExecutionPolicy Bypass -c "irm https://github.com/WiK1ngST/plan-atla
 **Cách khác**
 ```sh
 brew install WiK1ngST/tap/plan-atlas   # Homebrew
-npx plan-atlas                         # npm, không cần cài toàn cục
+npm i -g plan-atlas                    # npm (cài toàn cục; chạy qua `npx` không setup được)
 ```
 
 Từ mã nguồn (cần Rust 1.89+ và Node 22): `cd web && npm ci && npm run build && cd .. && cargo build --release` — giao diện web được nhúng vào file chạy, xem [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -53,7 +53,7 @@ powershell -ExecutionPolicy Bypass -c "irm https://github.com/WiK1ngST/plan-atla
 **Other options**
 ```sh
 brew install WiK1ngST/tap/plan-atlas   # Homebrew
-npx plan-atlas                         # npm, no global install
+npm i -g plan-atlas                    # npm (global install; `npx` cannot run setup)
 ```
 
 From source (needs Rust 1.89+ and Node 22): `cd web && npm ci && npm run build && cd .. && cargo build --release` — the web UI is embedded into the binary, see [CONTRIBUTING.md](CONTRIBUTING.md).

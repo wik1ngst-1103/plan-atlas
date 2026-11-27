@@ -135,6 +135,11 @@ fn first_run(paths: &Paths, config: &Config) {
     if config.setup_done || !std::io::stdin().is_terminal() {
         return;
     }
+    if let Err(hint) = setup::setup_binary() {
+        // Not recorded as done: a later global install still gets asked.
+        println!("Skipping Claude Code setup: {hint}");
+        return;
+    }
     print!("Connect Plan Atlas to Claude Code? [Y/n] ");
     let _ = std::io::stdout().flush();
     let mut answer = String::new();
@@ -156,8 +161,9 @@ fn first_run(paths: &Paths, config: &Config) {
     }
 }
 
-/// Prune old events, import `~/.claude/plans`, scan everything, then
-/// announce [`LiveEvent::IndexReady`]. Runs on a blocking thread.
+/// Prune old events, scan everything and announce [`LiveEvent::IndexReady`],
+/// then import `~/.claude/plans` (rescanning and announcing again when
+/// anything was imported). Runs on a blocking thread.
 fn initial_index(
     paths: Paths,
     store: Arc<Store>,

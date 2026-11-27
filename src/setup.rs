@@ -513,14 +513,41 @@ fn print_settings(r: &SetupReport, settings: &std::path::Path) {
     }
 }
 
+/// How to install Plan Atlas so setup records a binary that stays put.
+pub const EPHEMERAL_HINT: &str = "this plan-atlas binary runs from a temporary npx/npm cache \
+or temp directory, so hooks and the MCP server would point at a path that disappears. Install \
+it globally first (`npm i -g plan-atlas`, or the shell installer from the README), then run \
+`plan-atlas setup`.";
+
+/// True when `exe` sits in an npx cache (`/_npx/` or `\_npx\` in the path)
+/// or under `temp` (normally [`std::env::temp_dir`]): such a path must not be
+/// recorded in Claude Code's settings.
+pub fn is_ephemeral_exe(exe: &Path, temp: &Path) -> bool {
+    let s = exe.to_string_lossy();
+    if s.contains("/_npx/") || s.contains("\\_npx\\") {
+        return true;
+    }
+    let canon = |p: &Path| fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    !temp.as_os_str().is_empty() && (exe.starts_with(temp) || canon(exe).starts_with(canon(temp)))
+}
+
+/// The running binary, unless it is ephemeral (see [`is_ephemeral_exe`]).
+/// Not canonicalized: keep a stable symlink path (e.g. Homebrew's
+/// bin/plan-atlas) rather than a version-specific target.
+pub fn setup_binary() -> Result<PathBuf, String> {
+    let bin =
+        std::env::current_exe().map_err(|e| format!("cannot locate the plan-atlas binary: {e}"))?;
+    if is_ephemeral_exe(&bin, &std::env::temp_dir()) {
+        return Err(EPHEMERAL_HINT.to_string());
+    }
+    Ok(bin)
+}
+
 /// The `plan-atlas setup` flow: describe the changes, confirm (skipped with
 /// `yes`), install, print a summary and record `setup_done`.
 pub fn run_setup(yes: bool) -> Result<(), String> {
     let home = claude_home().ok_or("cannot determine Claude Code config directory")?;
-    // Not canonicalized: keep a stable symlink path (e.g. Homebrew's
-    // bin/plan-atlas) rather than a version-specific target.
-    let bin =
-        std::env::current_exe().map_err(|e| format!("cannot locate the plan-atlas binary: {e}"))?;
+    let bin = setup_binary()?;
     let claude = find_claude_cli();
     let settings = settings_path(&home);
     println!("plan-atlas setup will:");
