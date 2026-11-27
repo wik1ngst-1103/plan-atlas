@@ -7,6 +7,7 @@
 [![CI](https://github.com/wik1ngst-1103/plan-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/wik1ngst-1103/plan-atlas/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
+[![Website](https://img.shields.io/badge/website-wik1ngst--1103.github.io%2Fplan--atlas-3b5bdb)](https://wik1ngst-1103.github.io/plan-atlas/)
 
 **English** · [Tiếng Việt](README.vi.md)
 

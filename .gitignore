@@ -5,3 +5,4 @@ web/dist/
 .impeccable/
 .DS_Store
 *.log
+.hallmark/

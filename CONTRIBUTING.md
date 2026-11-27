@@ -91,6 +91,16 @@ If you touched anything that runs while the app is idle (watcher, poller, SSE), 
 
 **Style.** Use `rustfmt` and `clippy` defaults. Svelte/TS follow the repo's Prettier config. Prefer small, focused files.
 
+## Website
+
+The project website lives in `site/`: static HTML, CSS and a little vanilla JavaScript, with no build step. Preview it locally with:
+
+```sh
+python3 -m http.server -d site
+```
+
+Then open `http://localhost:8000`. Keep every URL relative so the page also works under `https://wik1ngst-1103.github.io/plan-atlas/`; `404.html` is the one exception and links `/plan-atlas/` absolutely. Copy lives in `index.html` (English) and `site/main.js` (Vietnamese), so update both. Screenshots must come from sample data, never real plans. Pushing changes under `site/` to `main` deploys the site through `.github/workflows/pages.yml`.
+
 ## Commits and pull requests
 
 - Use [Conventional Commits](https://www.conventionalcommits.org/): `feat(web): add topic panel`, `fix(store): handle CRLF files`, `docs: …`, `chore: …`.
