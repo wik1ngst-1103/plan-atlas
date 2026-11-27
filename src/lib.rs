@@ -6,5 +6,6 @@ pub mod mcp;
 pub mod ops;
 pub mod plan;
 pub mod server;
+pub mod setup;
 pub mod store;
 pub mod taxonomy;
