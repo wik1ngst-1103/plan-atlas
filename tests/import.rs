@@ -199,6 +199,24 @@ fn invalid_source_frontmatter_not_duplicated() {
     );
 }
 
+/// A transcript line where Claude writes `path` with the Write tool, as Claude
+/// Code records it.
+fn write_line(path: &str) -> String {
+    format!(
+        "{{\"type\":\"assistant\",\"message\":{{\"role\":\"assistant\",\"content\":[{{\"type\":\"tool_use\",\"name\":\"Write\",\"input\":{{\"file_path\":\"{path}\",\"content\":\"# Plan\"}}}}]}}}}\n"
+    )
+}
+
+fn set_mtime(f: &Path, secs: u64) {
+    let t = std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(secs);
+    fs::File::options()
+        .write(true)
+        .open(f)
+        .unwrap()
+        .set_modified(t)
+        .unwrap();
+}
+
 /// `n` transcripts in separate project dirs; transcript `i` mentions
 /// `plan-{i}.md` from repo `repo-{i}`. Older index → older mtime.
 fn many_transcripts(n: usize) -> (tempfile::TempDir, PathBuf) {
@@ -217,9 +235,7 @@ fn many_transcripts(n: usize) -> (tempfile::TempDir, PathBuf) {
         for _ in 0..50 {
             text.push_str("{\"type\":\"assistant\",\"message\":\"filler line\"}\n");
         }
-        text.push_str(&format!(
-            "{{\"type\":\"tool\",\"path\":\"/home/u/.claude/plans/plan-{i}.md\"}}\n"
-        ));
+        text.push_str(&write_line(&format!("/home/u/.claude/plans/plan-{i}.md")));
         let f = dir.join("s.jsonl");
         fs::write(&f, text).unwrap();
         let t = std::time::SystemTime::UNIX_EPOCH
@@ -270,4 +286,77 @@ fn batch_inference_stops_when_all_resolved_newest_first() {
         "newest transcript resolves it; nothing else is read"
     );
     assert!(infer_projects(&[], &claude).is_empty());
+}
+
+/// Regression: a newer session that merely lists plan names (e.g. `ls
+/// ~/.claude/plans` output, or a chat message quoting them) must not claim
+/// them; only the session where Claude wrote or edited the plan file counts.
+#[test]
+fn only_plan_file_writes_decide_the_project() {
+    let tmp = tempfile::tempdir().unwrap();
+    let claude = tmp.path().join("claude");
+    let home_plans = "/home/u/.claude/plans";
+    let mk_repo = |name: &str| {
+        let r = tmp.path().join("work").join(name);
+        fs::create_dir_all(r.join(".git")).unwrap();
+        r
+    };
+    let (origin, noisy, editor) = (mk_repo("origin"), mk_repo("noisy"), mk_repo("editor"));
+
+    // Oldest: the real author session writes a.md.
+    let d = claude.join("projects/-work-origin");
+    fs::create_dir_all(&d).unwrap();
+    let f = d.join("s.jsonl");
+    fs::write(
+        &f,
+        format!(
+            "{{\"type\":\"user\",\"cwd\":\"{}\"}}\n{}",
+            origin.display(),
+            write_line(&format!("{home_plans}/a.md"))
+        ),
+    )
+    .unwrap();
+    set_mtime(&f, 1_000_000);
+
+    // Middle: another session edits b.md with the Edit tool (counts too).
+    let d = claude.join("projects/-work-editor");
+    fs::create_dir_all(&d).unwrap();
+    let f = d.join("s.jsonl");
+    fs::write(
+        &f,
+        format!(
+            "{{\"type\":\"assistant\",\"cwd\":\"{}\",\"message\":{{\"content\":[{{\"type\":\"tool_use\",\"name\":\"Edit\",\"input\":{{\"file_path\":\"{home_plans}/b.md\",\"old_string\":\"x\",\"new_string\":\"y\"}}}}]}}}}\n",
+            editor.display()
+        ),
+    )
+    .unwrap();
+    set_mtime(&f, 1_000_100);
+
+    // Newest: a session that only lists every plan name, in a tool result,
+    // a Read of the plan, and plain chat text.
+    let d = claude.join("projects/-work-noisy");
+    fs::create_dir_all(&d).unwrap();
+    let f = d.join("s.jsonl");
+    fs::write(
+        &f,
+        format!(
+            concat!(
+                "{{\"type\":\"user\",\"cwd\":\"{cwd}\",\"message\":{{\"content\":[{{\"type\":\"tool_result\",\"content\":\"a.md\\nb.md\\nc.md\"}}]}}}}\n",
+                "{{\"type\":\"assistant\",\"cwd\":\"{cwd}\",\"message\":{{\"content\":[{{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{{\"file_path\":\"{p}/a.md\"}}}}]}}}}\n",
+                "{{\"type\":\"assistant\",\"cwd\":\"{cwd}\",\"message\":{{\"content\":[{{\"type\":\"text\",\"text\":\"see {p}/c.md\"}}]}}}}\n"
+            ),
+            cwd = noisy.display(),
+            p = home_plans
+        ),
+    )
+    .unwrap();
+    set_mtime(&f, 1_000_200);
+
+    let names = ["a.md", "b.md", "c.md"].map(String::from);
+    let found = infer_projects(&names, &claude);
+    assert_eq!(found.get("a.md").map(String::as_str), Some("origin"));
+    assert_eq!(found.get("b.md").map(String::as_str), Some("editor"));
+    assert_eq!(found.get("c.md"), None, "never written anywhere → unsorted");
+    // A file of the same name outside a `plans` directory does not count.
+    assert_eq!(infer_project("x.md", &claude), None);
 }

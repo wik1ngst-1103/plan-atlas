@@ -143,8 +143,12 @@ fn transcripts_newest_first(claude_home: &Path) -> Vec<PathBuf> {
     files.into_iter().map(|(_, p)| p).collect()
 }
 
-/// For each needle: the first line mentioning it decides, using that line's
-/// `cwd`, else the nearest earlier one. Needles without a cwd are left out.
+/// For each needle (a plan file name): the first transcript line where Claude
+/// wrote or edited that plan file — a `tool_use` of Write, Edit or MultiEdit
+/// whose `file_path` is `…/plans/<needle>` — decides, using that line's `cwd`,
+/// else the nearest earlier one. Lines that merely mention the name (`ls`
+/// output, Read calls, chat text) do not count. Needles without a cwd are left
+/// out.
 fn cwds_for_matches<'a>(mut reader: impl BufRead, needles: &[&'a str]) -> Vec<(&'a str, String)> {
     let mut out = Vec::new();
     let mut open: Vec<&str> = needles.to_vec();
@@ -157,27 +161,57 @@ fn cwds_for_matches<'a>(mut reader: impl BufRead, needles: &[&'a str]) -> Vec<(&
             Ok(_) => {}
         }
         let line = String::from_utf8_lossy(&buf);
-        let cwd = if line.contains("\"cwd\"") {
-            serde_json::from_str::<serde_json::Value>(&line)
-                .ok()
-                .and_then(|v| v.get("cwd").and_then(|c| c.as_str()).map(str::to_string))
-        } else {
-            None
+        let has_cwd = line.contains("\"cwd\"");
+        let candidate = line.contains("tool_use") && open.iter().any(|n| line.contains(n));
+        if !has_cwd && !candidate {
+            continue;
+        }
+        let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) else {
+            continue;
         };
-        open.retain(|n| {
-            if !line.contains(n) {
-                return true;
-            }
-            if let Some(c) = cwd.as_ref().or(last_cwd.as_ref()) {
-                out.push((*n, c.clone()));
-            }
-            false
-        });
+        let cwd = v.get("cwd").and_then(|c| c.as_str()).map(str::to_string);
+        if candidate {
+            let written = written_plan_files(&v);
+            open.retain(|n| {
+                if !written.iter().any(|w| w == n) {
+                    return true;
+                }
+                if let Some(c) = cwd.as_ref().or(last_cwd.as_ref()) {
+                    out.push((*n, c.clone()));
+                }
+                false
+            });
+        }
         if cwd.is_some() {
             last_cwd = cwd;
         }
     }
     out
+}
+
+/// File names of plan files (`…/plans/<name>`) written or edited by the
+/// Write / Edit / MultiEdit tool calls in one transcript entry.
+fn written_plan_files(entry: &serde_json::Value) -> Vec<String> {
+    let Some(items) = entry.pointer("/message/content").and_then(|c| c.as_array()) else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .filter(|it| it.get("type").and_then(|t| t.as_str()) == Some("tool_use"))
+        .filter(|it| {
+            matches!(
+                it.get("name").and_then(|t| t.as_str()),
+                Some("Write" | "Edit" | "MultiEdit")
+            )
+        })
+        .filter_map(|it| it.pointer("/input/file_path").and_then(|p| p.as_str()))
+        .filter_map(|fp| {
+            // Accept both separators: transcripts may come from Windows.
+            let mut parts = fp.rsplit(['/', '\\']);
+            let name = parts.next()?;
+            (parts.next()? == "plans").then(|| name.to_string())
+        })
+        .collect()
 }
 
 struct Known {
