@@ -378,7 +378,11 @@ fn search_plans(ctx: &Ctx, args: SearchPlansArgs) -> Result<crate::store::Search
     if let Some(tags) = args.tags.filter(|t| !t.is_empty()) {
         let has_all = |have: &[String]| tags.iter().all(|t| have.contains(t));
         found.plans.retain(|p| has_all(&p.tags));
-        found.tasks.retain(|t| has_all(&t.task.tags));
+        // Tasks inherit their plan's topics.
+        found.tasks.retain(|t| {
+            let all: Vec<String> = t.task.tags.iter().chain(&t.plan_tags).cloned().collect();
+            has_all(&all)
+        });
         found.topics.retain(|t| tags.contains(&t.tag));
     }
     Ok(found)

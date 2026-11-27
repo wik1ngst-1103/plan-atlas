@@ -418,21 +418,29 @@ impl Store {
         task_rows(
             &self.conn(),
             "WHERE (?1 IS NULL OR p.project = ?1)
-               AND (?2 IS NULL OR EXISTS (SELECT 1 FROM task_tags g
-                    WHERE g.plan_id = t.plan_id AND g.task_id = t.id AND g.tag = ?2))",
+               AND (?2 IS NULL
+                    OR EXISTS (SELECT 1 FROM task_tags g
+                        WHERE g.plan_id = t.plan_id AND g.task_id = t.id AND g.tag = ?2)
+                    OR EXISTS (SELECT 1 FROM plan_tags g
+                        WHERE g.plan_id = t.plan_id AND g.tag = ?2))",
             &[&f.project, &f.tag],
         )
     }
 
-    /// Per tag: number of plans using it (directly or via a task) and number of tasks.
+    /// Per tag: number of plans using it (directly or via a task) and number of tasks
+    /// having it directly or through their plan (tasks inherit plan topics; each counted once).
     pub fn topics(&self) -> Result<Vec<TopicCount>> {
         let conn = self.conn();
         let mut stmt = conn.prepare(
             "WITH used(tag, plan_id, task_id) AS (
                  SELECT tag, plan_id, NULL FROM plan_tags
-                 UNION ALL SELECT tag, plan_id, task_id FROM task_tags)
-             SELECT tag, count(DISTINCT plan_id), count(task_id) FROM used
-             GROUP BY tag ORDER BY tag",
+                 UNION ALL SELECT tag, plan_id, task_id FROM task_tags
+                 UNION ALL SELECT g.tag, t.plan_id, t.id FROM plan_tags g
+                     JOIN tasks t ON t.plan_id = g.plan_id)
+             SELECT tag, count(DISTINCT plan_id),
+                    count(DISTINCT CASE WHEN task_id IS NOT NULL
+                                        THEN plan_id || char(31) || task_id END)
+             FROM used GROUP BY tag ORDER BY tag",
         )?;
         let rows = stmt
             .query_map([], |r| {

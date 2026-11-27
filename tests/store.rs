@@ -414,3 +414,41 @@ fn task_rows_carry_no_body_but_plan_tags() {
         "body of First"
     );
 }
+
+#[test]
+fn tasks_inherit_plan_topics() {
+    let (_d, s) = store();
+    // Plan tags domain/security (plan only) and tech/jwt (also on task T1).
+    s.upsert_plan(&plan(
+        "auth-001",
+        "demo",
+        &["domain/security", "tech/jwt"],
+        &[],
+    ))
+    .unwrap();
+    s.upsert_plan(&plan("other-001", "demo", &[], &[])).unwrap();
+    let by = |tag: &str| {
+        s.list_tasks(&TaskFilter {
+            project: None,
+            tag: Some(tag.into()),
+        })
+        .unwrap()
+        .iter()
+        .map(|r| format!("{}/{}", r.plan_id, r.task.id))
+        .collect::<Vec<_>>()
+    };
+    assert_eq!(by("domain/security"), ["auth-001/T1", "auth-001/T2"]);
+    // tech/jwt: both tasks of auth-001 via the plan, plus other-001/T1 directly; each once.
+    assert_eq!(
+        by("tech/jwt"),
+        ["auth-001/T1", "auth-001/T2", "other-001/T1"]
+    );
+
+    let topics = s.topics().unwrap();
+    let count = |tag: &str| {
+        let t = topics.iter().find(|t| t.tag == tag).unwrap();
+        (t.plans, t.tasks)
+    };
+    assert_eq!(count("domain/security"), (1, 2));
+    assert_eq!(count("tech/jwt"), (2, 3));
+}

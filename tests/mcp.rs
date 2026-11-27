@@ -457,6 +457,12 @@ fn list_search_and_taxonomy() {
         json!({ "query": "JWT", "tags": ["type/feature"] }),
     );
     assert_eq!(tagged["plans"][0]["id"], "PLAN-my-repo-001");
+    // The untagged task inherits its plan's type/feature topic.
+    let (_, task_hit) = mcp.call(
+        "search_plans",
+        json!({ "query": "Authentication", "tags": ["type/feature"] }),
+    );
+    assert_eq!(task_hit["tasks"][0]["task"]["id"], "TASK-001", "{task_hit}");
 
     let (err, tax) = mcp.call("get_taxonomy", json!({}));
     assert!(!err, "{tax}");
