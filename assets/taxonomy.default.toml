@@ -1,0 +1,148 @@
+# Plan Atlas default taxonomy. Edit freely; this file is never overwritten.
+
+[tags."type/feature"]
+group = "type"
+label_en = "New feature"
+desc_en = "Adds a new capability to the product."
+label_vi = "Tính năng mới"
+desc_vi = "Thêm khả năng mới cho sản phẩm."
+
+[tags."type/docs"]
+group = "type"
+label_en = "Documentation"
+desc_en = "Writing or updating documentation."
+label_vi = "Tài liệu"
+desc_vi = "Viết hoặc cập nhật tài liệu."
+
+[tags."type/refactor"]
+group = "type"
+label_en = "Refactor"
+desc_en = "Reorganizes code to make it better without changing behavior."
+label_vi = "Cải tổ code"
+desc_vi = "Sắp xếp lại code cho tốt hơn, không đổi chức năng."
+
+[tags."type/bugfix"]
+group = "type"
+label_en = "Bug fix"
+desc_en = "Fixes something that behaves incorrectly."
+label_vi = "Sửa lỗi"
+desc_vi = "Khắc phục chỗ chạy sai so với mong đợi."
+
+[tags."type/research"]
+group = "type"
+label_en = "Research"
+desc_en = "Investigates options before deciding what to build."
+label_vi = "Nghiên cứu"
+desc_vi = "Tìm hiểu các phương án trước khi quyết định làm gì."
+
+[tags."type/infra"]
+group = "type"
+label_en = "Infrastructure"
+desc_en = "Work on build, hosting and the foundations the product runs on."
+label_vi = "Hạ tầng"
+desc_vi = "Việc về build, hosting và nền tảng để sản phẩm chạy."
+
+[tags."domain/security"]
+group = "domain"
+label_en = "Security"
+desc_en = "Login, permissions, and preventing unauthorized access."
+label_vi = "Bảo mật"
+desc_vi = "Đăng nhập, phân quyền, chống truy cập trái phép."
+
+[tags."domain/backend"]
+group = "domain"
+label_en = "Backend"
+desc_en = "The part that runs on the server, handling data and APIs."
+label_vi = "Máy chủ (backend)"
+desc_vi = "Phần chạy trên server, xử lý dữ liệu và API."
+
+[tags."domain/frontend"]
+group = "domain"
+label_en = "Frontend"
+desc_en = "The part users see and interact with."
+label_vi = "Giao diện (frontend)"
+desc_vi = "Phần người dùng nhìn thấy và thao tác."
+
+[tags."domain/data"]
+group = "domain"
+label_en = "Data"
+desc_en = "Processing, transforming and storing data."
+label_vi = "Dữ liệu"
+desc_vi = "Xử lý, chuyển đổi, lưu trữ dữ liệu."
+
+[tags."domain/devops"]
+group = "domain"
+label_en = "DevOps"
+desc_en = "Deployment, CI/CD and keeping services running."
+label_vi = "DevOps"
+desc_vi = "Triển khai, CI/CD và giữ cho dịch vụ chạy ổn định."
+
+[tags."domain/ai"]
+group = "domain"
+label_en = "AI"
+desc_en = "Features that use AI models."
+label_vi = "AI"
+desc_vi = "Tính năng dùng mô hình AI."
+
+[tags."tech/jwt"]
+group = "tech"
+label_en = "JWT - login token"
+desc_en = "A standard \"electronic ticket\" proving a user is logged in."
+label_vi = "JWT – token đăng nhập"
+desc_vi = "Chuẩn \"vé điện tử\" chứng minh người dùng đã đăng nhập."
+
+[tags."tech/oauth"]
+group = "tech"
+label_en = "OAuth - sign in with another account"
+desc_en = "Lets users sign in using an account from another service."
+label_vi = "OAuth – đăng nhập bằng tài khoản khác"
+desc_vi = "Cho phép đăng nhập bằng tài khoản của dịch vụ khác."
+
+[tags."tech/rbac"]
+group = "tech"
+label_en = "Role-based access"
+desc_en = "Each role (admin, staff...) is allowed to do different things."
+label_vi = "Phân quyền theo vai trò"
+desc_vi = "Mỗi vai trò (admin, nhân viên…) được làm những việc khác nhau."
+
+[tags."tech/redis"]
+group = "tech"
+label_en = "Redis - in-memory cache"
+desc_en = "A very fast store for temporary data."
+label_vi = "Redis – bộ nhớ đệm"
+desc_vi = "Kho lưu dữ liệu tạm rất nhanh."
+
+[tags."tech/postgres"]
+group = "tech"
+label_en = "PostgreSQL - database"
+desc_en = "The main, long-term place where data is stored."
+label_vi = "PostgreSQL – cơ sở dữ liệu"
+desc_vi = "Nơi lưu dữ liệu chính, lâu dài."
+
+[tags."tech/react"]
+group = "tech"
+label_en = "React - UI library"
+desc_en = "A library for building interactive web interfaces."
+label_vi = "React – thư viện giao diện"
+desc_vi = "Thư viện dựng giao diện web có tương tác."
+
+[tags."tech/threejs"]
+group = "tech"
+label_en = "Three.js - 3D graphics"
+desc_en = "A library for showing 3D models on the web."
+label_vi = "Three.js – đồ hoạ 3D"
+desc_vi = "Thư viện hiển thị mô hình 3D trên web."
+
+[tags."tech/gltf"]
+group = "tech"
+label_en = "glTF - 3D format"
+desc_en = "A popular file format for 3D models."
+label_vi = "glTF – định dạng 3D"
+desc_vi = "Định dạng file mô hình 3D phổ biến."
+
+[tags."tech/rag"]
+group = "tech"
+label_en = "RAG - AI document lookup"
+desc_en = "AI finds relevant documents first, then answers."
+label_vi = "RAG – AI tra cứu tài liệu"
+desc_vi = "AI tìm tài liệu liên quan rồi mới trả lời."
