@@ -42,17 +42,17 @@ Claude Code ──(hooks)─────── plan-atlas hook ─┼──► S
 
 **macOS / Linux**
 ```sh
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/WiK1ngST/plan-atlas/releases/latest/download/plan-atlas-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/wik1ngst-1103/plan-atlas/releases/latest/download/plan-atlas-installer.sh | sh
 ```
 
 **Windows (PowerShell)**
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/WiK1ngST/plan-atlas/releases/latest/download/plan-atlas-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/wik1ngst-1103/plan-atlas/releases/latest/download/plan-atlas-installer.ps1 | iex"
 ```
 
 **Other options**
 ```sh
-brew install WiK1ngST/tap/plan-atlas   # Homebrew
+brew install wik1ngst-1103/tap/plan-atlas   # Homebrew
 npm i -g plan-atlas                    # npm (global install; `npx` cannot run setup)
 ```
 

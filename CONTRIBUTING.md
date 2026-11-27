@@ -18,7 +18,7 @@ Requirements:
 - Git.
 
 ```sh
-git clone https://github.com/WiK1ngST/plan-atlas.git
+git clone https://github.com/wik1ngst-1103/plan-atlas.git
 cd plan-atlas
 
 # 1. Build the web UI once (it is embedded into the binary)
