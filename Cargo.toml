@@ -2,7 +2,7 @@
 name = "plan-atlas"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Local app that aggregates Claude Code plans into one searchable, browsable place"
 license = "MIT"
 repository = "https://github.com/WiK1ngST/plan-atlas"
@@ -25,6 +25,9 @@ tokio = { version = "1.54.1", features = ["sync", "rt-multi-thread", "macros", "
 toml = "1.2.3"
 ts-rs = "12.0.1"
 unicode-normalization = "0.1.26"
+rmcp = { version = "3.12.0", default-features = false, features = ["server", "macros", "transport-io"] }
+schemars = "1.2.3"
+time = { version = "0.3.55", features = ["local-offset"] }
 
 [dev-dependencies]
 assert_cmd = "2"

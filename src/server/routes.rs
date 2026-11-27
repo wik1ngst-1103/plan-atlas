@@ -1,7 +1,6 @@
 //! REST routes and the SSE stream.
 
 use std::convert::Infallible;
-use std::path::PathBuf;
 use std::time::Duration;
 
 use axum::Json;
@@ -18,8 +17,8 @@ use tokio::sync::broadcast::error::RecvError;
 
 use super::AppState;
 use crate::events::LiveEvent;
-use crate::index::index_file;
-use crate::plan::{Plan, TaskStatus, WriteError, set_task_status, write_atomic};
+use crate::ops::{OpError, set_task_status_op, valid_id};
+use crate::plan::{Plan, TaskStatus};
 use crate::store::{PlanFilter, TaskFilter};
 
 pub(super) fn error_response(status: StatusCode, msg: &str) -> Response {
@@ -68,13 +67,6 @@ pub(super) fn router() -> Router<AppState> {
         .route("/api/graph", get(graph))
         .route("/api/search", get(search))
         .route("/api/stream", get(stream))
-}
-
-fn valid_id(id: &str) -> bool {
-    (1..=100).contains(&id.len())
-        && id
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
 }
 
 /// Run a blocking store closure off the async runtime.
@@ -223,22 +215,6 @@ struct StatusBody {
     status: TaskStatus,
 }
 
-/// The plan's source file, only if it resolves to somewhere under `paths.plans`.
-fn safe_plan_path(s: &AppState, plan_id: &str) -> Result<PathBuf, ApiError> {
-    let raw = s
-        .store
-        .find_task_path(plan_id)
-        .map_err(ApiError::internal)?
-        .ok_or(ApiError::NotFound)?;
-    let root = std::fs::canonicalize(&s.paths.plans).map_err(ApiError::internal)?;
-    let path = std::fs::canonicalize(raw).map_err(|_| ApiError::NotFound)?;
-    if path.starts_with(&root) {
-        Ok(path)
-    } else {
-        Err(ApiError::NotFound)
-    }
-}
-
 async fn patch_task(
     State(s): State<AppState>,
     Path((plan_id, task_id)): Path<(String, String)>,
@@ -252,21 +228,11 @@ async fn patch_task(
     let live = s.live.clone();
     let (pid, tid) = (plan_id.clone(), task_id.clone());
     let plan = blocking(move || {
-        let path = safe_plan_path(&s, &pid)?;
-        let bytes = std::fs::read(&path).map_err(ApiError::internal)?;
-        let new = match set_task_status(&bytes, &tid, status) {
-            Ok(b) => b,
-            Err(WriteError::TaskNotFound(_)) => return Err(ApiError::NotFound),
-        };
-        write_atomic(&path, &new).map_err(ApiError::internal)?;
-        let id = index_file(&s.store, &s.tax, &path)
-            .map_err(ApiError::internal)?
-            .unwrap_or(pid);
-        match s.store.get_plan(&id) {
-            Ok(Some(p)) => Ok(p),
-            Ok(None) => Err(ApiError::NotFound),
-            Err(e) => Err(ApiError::internal(e)),
-        }
+        set_task_status_op(&s.store, &s.tax, &s.paths, &pid, &tid, status).map_err(|e| match e {
+            OpError::NotFound(_) => ApiError::NotFound,
+            OpError::Invalid(m) => ApiError::BadRequest(m),
+            OpError::Internal(m) => ApiError::internal(m),
+        })
     })
     .await?;
     let _ = live.send(LiveEvent::TaskStatus {

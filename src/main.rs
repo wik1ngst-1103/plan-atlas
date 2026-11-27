@@ -76,11 +76,13 @@ fn run(command: Command) -> Result<(), String> {
     match command {
         Command::Import => run_import(),
         Command::Hook => Ok(()), // handled in `main` before parsing
-        Command::Serve { .. }
-        | Command::Mcp
-        | Command::Setup { .. }
-        | Command::UninstallClaude
-        | Command::Task { .. } => Err("not implemented yet".to_string()),
+        Command::Mcp => {
+            plan_atlas::mcp::run(plan_atlas::config::Paths::resolve()).map_err(|e| format!("{e:#}"))
+        }
+        Command::Task { action } => run_task(action),
+        Command::Serve { .. } | Command::Setup { .. } | Command::UninstallClaude => {
+            Err("not implemented yet".to_string())
+        }
     }
 }
 
@@ -101,5 +103,24 @@ fn run_import() -> Result<(), String> {
         "Imported {}, skipped {} ({} unsorted{failed})",
         r.imported, r.skipped, r.unsorted
     );
+    Ok(())
+}
+
+fn run_task(action: TaskAction) -> Result<(), String> {
+    use plan_atlas::plan::TaskStatus;
+    let (plan_id, task_id, status, label) = match action {
+        TaskAction::Start { plan_id, task_id } => {
+            (plan_id, task_id, TaskStatus::InProgress, "in_progress")
+        }
+        TaskAction::Done { plan_id, task_id } => (plan_id, task_id, TaskStatus::Done, "done"),
+    };
+    let paths = plan_atlas::config::Paths::resolve();
+    paths.ensure().map_err(|e| e.to_string())?;
+    let tax = plan_atlas::taxonomy::Taxonomy::load(&paths);
+    let store = plan_atlas::store::Store::open(&paths.db, std::sync::Arc::new(tax.clone()))
+        .map_err(|e| format!("{e:#}"))?;
+    plan_atlas::ops::set_task_status_op(&store, &tax, &paths, &plan_id, &task_id, status)
+        .map_err(|e| e.to_string())?;
+    println!("{task_id} \u{2192} {label}");
     Ok(())
 }
