@@ -53,7 +53,9 @@ describe('Toc', () => {
     const { container } = render(Toc, { items, active: null, onGo: () => {} });
     const row = container.querySelector('[data-anchor="overview"]')!;
     expect(row.querySelector('.n')?.textContent).toBe('01');
-    expect(row.textContent?.replace(/\s+/g, ' ').trim()).toBe('01Overview');
+    // The number is decoration for screen readers: the row reads as "Overview".
+    expect(row.querySelector('.n')?.getAttribute('aria-hidden')).toBe('true');
+    expect(row.querySelector('span')?.lastChild?.textContent?.trim()).toBe('Overview');
   });
 
   it('calls onGo with the anchor and never changes the route', async () => {

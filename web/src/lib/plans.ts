@@ -124,3 +124,13 @@ export function readingMinutes(sections: Section[]): number {
   walk(sections);
   return Math.max(1, Math.round(words / 220));
 }
+
+/**
+ * Short name for a heading in "On this page": the file name for file-path headings, the
+ * name without its number for the standard sections, otherwise the heading itself.
+ */
+export function tocLabel(title: string): string {
+  const p = pathHeading(title);
+  if (p) return p.path.replace(/\/$/, '').split('/').pop() || p.path;
+  return standardSection(title)?.name ?? title;
+}

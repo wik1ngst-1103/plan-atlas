@@ -7,6 +7,7 @@ import {
   planStatus,
   readingMinutes,
   standardSection,
+  tocLabel,
   uniqueAnchors,
 } from './plans';
 
@@ -98,5 +99,19 @@ describe('reading helpers', () => {
     });
     expect(readingMinutes([s('hi')])).toBe(1);
     expect(readingMinutes([s(words(600), [s(words(500))])])).toBe(5);
+  });
+});
+
+describe('tocLabel', () => {
+  it('shortens file paths and standard sections, keeps other headings', () => {
+    expect(tocLabel('New file: server/src/agents/proof/proof.compiler.ts')).toBe(
+      'proof.compiler.ts',
+    );
+    expect(tocLabel('server/src/agents/creative-pipeline.service.ts (wire it)')).toBe(
+      'creative-pipeline.service.ts',
+    );
+    expect(tocLabel('src/components/')).toBe('components');
+    expect(tocLabel('03. Technical Analysis')).toBe('Technical Analysis');
+    expect(tocLabel('Phase 1 — Proof-First')).toBe('Phase 1 — Proof-First');
   });
 });

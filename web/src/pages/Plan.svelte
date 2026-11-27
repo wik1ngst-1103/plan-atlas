@@ -4,6 +4,7 @@
   import DocView from '../components/DocView.svelte';
   import Icon from '../components/Icon.svelte';
   import Toc from '../components/Toc.svelte';
+  import TocMenu from '../components/TocMenu.svelte';
   import TopicChip from '../components/TopicChip.svelte';
   import { ApiError, api } from '../lib/api';
   import type { Plan } from '../lib/generated/Plan';
@@ -53,7 +54,10 @@
     moveError = null;
     // A new plan opens at its top, not at the previous plan's scroll position.
     untrack(() => {
-      if (!deepLink) document.querySelector('main')?.scrollTo?.({ top: 0 });
+      if (deepLink) return;
+      // <main> scrolls on wide screens, the page itself on phones.
+      document.querySelector('main')?.scrollTo?.({ top: 0 });
+      if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
     });
     void load(planId);
     ensureTopics();
@@ -124,26 +128,44 @@
   let progress = $state(0);
   let farDown = $state(false);
   let menuOpen = $state(false);
-  let lockUntil = 0;
   let article = $state<HTMLElement | null>(null);
 
   const scroller = () => scrollParent(article);
   const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  // While a TOC click scrolls smoothly, keep its target highlighted instead of every section
+  // passed on the way. The lock ends when the scroll does (scrollend), when the reader takes
+  // over (wheel / touch / keys), or after a fallback timeout.
+  let locked = false;
+  let lockTimer: ReturnType<typeof setTimeout> | undefined;
+  let requestMeasure = () => {};
+  function unlock() {
+    if (!locked) return;
+    locked = false;
+    clearTimeout(lockTimer);
+    requestMeasure();
+  }
+  function lock(ms: number) {
+    locked = true;
+    clearTimeout(lockTimer);
+    lockTimer = setTimeout(unlock, ms);
+  }
+
   $effect(() => {
     const items = tocItems;
     if (!article || !items.length) return;
     let raf = 0;
+    // Resolved once (and again on resize): which element scrolls depends on the layout.
+    let sc = scroller();
     const measure = () => {
       raf = 0;
-      const sc = scroller();
       const top = sc ? sc.getBoundingClientRect().top : 0;
       const view = sc ? sc.clientHeight : innerHeight;
       const st = sc ? sc.scrollTop : scrollY;
       const height = sc ? sc.scrollHeight : document.documentElement.scrollHeight;
       progress = readProgress(st, height, view);
       farDown = st > view;
-      if (Date.now() < lockUntil) return;
+      if (locked) return;
       const positions = [];
       for (const i of items) {
         const el = document.getElementById(i.anchor);
@@ -154,25 +176,44 @@
     const on = () => {
       if (!raf) raf = requestAnimationFrame(measure);
     };
-    document.addEventListener('scroll', on, { capture: true, passive: true });
-    window.addEventListener('resize', on);
+    const resize = () => {
+      sc = scroller();
+      on();
+    };
+    requestMeasure = on;
+    const opts = { capture: true, passive: true };
+    document.addEventListener('scroll', on, opts);
+    document.addEventListener('scrollend', unlock, opts);
+    window.addEventListener('wheel', unlock, { passive: true });
+    window.addEventListener('touchstart', unlock, { passive: true });
+    window.addEventListener('keydown', unlock);
+    window.addEventListener('resize', resize);
     on();
     return () => {
       cancelAnimationFrame(raf);
-      document.removeEventListener('scroll', on, { capture: true });
-      window.removeEventListener('resize', on);
+      clearTimeout(lockTimer);
+      locked = false;
+      requestMeasure = () => {};
+      document.removeEventListener('scroll', on, opts);
+      document.removeEventListener('scrollend', unlock, opts);
+      window.removeEventListener('wheel', unlock);
+      window.removeEventListener('touchstart', unlock);
+      window.removeEventListener('keydown', unlock);
+      window.removeEventListener('resize', resize);
     };
   });
 
-  /** Scroll to a heading; highlight it at once rather than every section passed on the way. */
+  /** Scroll to a heading, highlight it at once, and move keyboard focus there. */
   function go(anchor: string) {
     const el = document.getElementById(anchor);
     if (!el) return;
     activeId = anchor;
     menuOpen = false;
     const smooth = !reduceMotion();
-    lockUntil = Date.now() + (smooth ? 900 : 100);
+    if (smooth) lock(1200);
     el.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+    if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+    el.focus({ preventScroll: true });
   }
 
   function toTop() {
@@ -188,8 +229,6 @@
     if (!a || !article || tab !== 'docs') return;
     requestAnimationFrame(() => go(a));
   });
-
-  const activeTitle = $derived(tocItems.find((i) => i.anchor === activeId)?.title ?? '');
 
   const warnText = (code: string) => {
     const k = `warn.${code}`;
@@ -307,15 +346,7 @@
       {/if}
     {:else}
       <div class="readbar" aria-hidden="true"><b style="transform:scaleX({progress})"></b></div>
-      <details class="tocmenu" bind:open={menuOpen}>
-        <summary>
-          <Icon name="list" size={16} />
-          <span class="tm-label">{$t('plan.onThisPage')}</span>
-          {#if activeTitle}<span class="tm-current">{activeTitle}</span>{/if}
-          <span class="tm-chev"><Icon name="down" size={16} /></span>
-        </summary>
-        <Toc items={tocItems} active={activeId} onGo={go} inline />
-      </details>
+      <TocMenu items={tocItems} active={activeId} onGo={go} bind:open={menuOpen} />
       <div class="doclayout">
         <div class="docwrap" bind:this={article}>
           <DocView planId={plan.id} {sections} tasks={plan.tasks} onGo={go} />
@@ -492,9 +523,6 @@
     background: var(--accent);
     transform-origin: 0 50%;
   }
-  .tocmenu {
-    display: none;
-  }
   .totop {
     position: fixed;
     right: 28px;
@@ -552,67 +580,6 @@
     .readbar {
       top: 0;
       left: 0;
-    }
-    /* Phones: "On this page" as a menu that stays at the top while reading. */
-    .tocmenu {
-      display: block;
-      position: sticky;
-      top: 0;
-      z-index: 4;
-      margin: 16px -16px 0;
-      padding: 0 16px;
-      background: var(--bg);
-      border-bottom: 1px solid var(--line);
-    }
-    .tocmenu summary {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 48px;
-      cursor: pointer;
-      list-style: none;
-      color: var(--mute);
-      font-size: 13.5px;
-    }
-    .tocmenu summary::-webkit-details-marker {
-      display: none;
-    }
-    .tm-label {
-      flex: none;
-      font-weight: 600;
-      color: var(--ink);
-    }
-    .tm-current {
-      flex: 1;
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: var(--accent);
-    }
-    .tm-current::before {
-      content: '·';
-      margin-right: 8px;
-      color: var(--faint);
-    }
-    .tm-chev {
-      margin-left: auto;
-      display: grid;
-      transition: transform 0.2s ease;
-    }
-    .tocmenu[open] .tm-chev {
-      transform: rotate(180deg);
-    }
-    /* The open list floats over the text, so opening it never shifts the document. */
-    .tocmenu > :global(.toc) {
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      padding: 4px 16px 14px;
-      background: var(--bg);
-      border-bottom: 1px solid var(--line);
-      box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
     }
     .totop {
       right: 16px;

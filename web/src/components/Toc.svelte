@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from '../lib/i18n';
-  import { pathHeading, standardSection } from '../lib/plans';
+  import { pathHeading, standardSection, tocLabel } from '../lib/plans';
   import { activeTrail, keepVisible, visibleToc, type TocItem } from '../lib/scrollspy';
 
   /**
@@ -25,12 +25,6 @@
   const trail = $derived(activeTrail(items, active));
   const roots = $derived(items.filter((i) => i.depth === 0));
   const at = $derived(roots.findIndex((r) => trail.has(r.anchor)) + 1);
-
-  /** File-path headings show just the file name; the full heading is in the tooltip. */
-  const label = (i: TocItem) => {
-    const p = pathHeading(i.title);
-    return p ? (p.path.replace(/\/$/, '').split('/').pop() ?? p.path) : i.title;
-  };
 
   let list = $state<HTMLElement | null>(null);
 
@@ -73,7 +67,7 @@
           onclick={() => onGo(i.anchor)}
         >
           <span>
-            {#if std}<i class="n">{std.n}</i>{std.name}{:else}{label(i)}{/if}
+            {#if std}<i class="n" aria-hidden="true">{std.n}</i>{/if}{tocLabel(i.title)}
           </span>
         </button>
       </li>
