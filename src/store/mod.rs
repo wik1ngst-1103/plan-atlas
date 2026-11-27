@@ -92,6 +92,9 @@ pub struct TaskRow {
     pub plan_id: String,
     pub plan_title: String,
     pub project: String,
+    /// Tags of the plan itself (board filters and groups by plan or task topics).
+    pub plan_tags: Vec<String>,
+    /// The task without its body (`body_md` is empty; bodies come from the plan).
     pub task: Task,
 }
 

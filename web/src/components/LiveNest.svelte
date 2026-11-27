@@ -12,7 +12,14 @@
     planId,
     taskNames = {},
     head = true,
-  }: { planId: string; taskNames?: Record<string, string>; head?: boolean } = $props();
+    push = false,
+  }: {
+    planId: string;
+    taskNames?: Record<string, string>;
+    head?: boolean;
+    /** Open tasks on top of the drawer stack (when shown inside the drawer). */
+    push?: boolean;
+  } = $props();
 
   const running = $derived(
     $activity
@@ -22,7 +29,7 @@
 
   const open = (e: Event, task: string) => {
     e.stopPropagation();
-    drawer.open({ type: 'task', plan: planId, task });
+    drawer.open({ type: 'task', plan: planId, task }, { push });
   };
   const key = (e: KeyboardEvent, task: string) => {
     if (e.key === 'Enter' || e.key === ' ') {

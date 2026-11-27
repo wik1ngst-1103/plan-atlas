@@ -1,60 +1,76 @@
 <script lang="ts">
+  import { STATUSES, STATUS_ICON, type Column } from '../lib/board';
   import type { TaskRow as TaskItem } from '../lib/generated/TaskRow';
   import type { TaskStatus } from '../lib/generated/TaskStatus';
   import { t } from '../lib/i18n';
   import TaskCard from './TaskCard.svelte';
 
-  const STATUSES: TaskStatus[] = ['todo', 'in_progress', 'review', 'done'];
-  const ICON: Record<TaskStatus, string> = { todo: '○', in_progress: '◐', review: '◑', done: '●' };
-
   /**
-   * Four status columns. With `onMove`, cards can be dragged to another column;
-   * the callback gets the item and its new status.
+   * Task columns. By default the four status columns; pass `columns` + `keyOf` to group
+   * by something else. With `onMove` (status columns only), cards can be dragged to
+   * another column; the callback gets the item and its new status.
    */
   let {
     items,
     showPlan = false,
     onMove,
+    columns,
+    keyOf,
   }: {
     items: TaskItem[];
     showPlan?: boolean;
     onMove?: (item: TaskItem, status: TaskStatus) => void;
+    columns?: Column[];
+    keyOf?: (item: TaskItem) => string;
   } = $props();
 
-  let over = $state<TaskStatus | null>(null);
+  const byStatus = $derived(!columns);
+  const cols = $derived<Column[]>(
+    columns ?? STATUSES.map((s) => ({ key: s, label: `${STATUS_ICON[s]} ${$t(`status.${s}`)}` })),
+  );
+  const colOf = (i: TaskItem) => (keyOf && !byStatus ? keyOf(i) : i.task.status);
+  const dnd = $derived(byStatus && !!onMove);
 
-  const drop = (e: DragEvent, status: TaskStatus) => {
+  let over = $state<string | null>(null);
+
+  const drop = (e: DragEvent, key: string) => {
+    if (!dnd) return;
     e.preventDefault();
     over = null;
     const [plan, task] = (e.dataTransfer?.getData('text/plain') ?? '').split('|');
     const item = items.find((i) => i.plan_id === plan && i.task.id === task);
+    const status = key as TaskStatus;
     if (item && item.task.status !== status) onMove?.(item, status);
   };
-  const dragOver = (e: DragEvent, status: TaskStatus) => {
-    if (!onMove) return;
+  const dragOver = (e: DragEvent, key: string) => {
+    if (!dnd) return;
     e.preventDefault();
-    over = status;
+    over = key;
   };
 </script>
 
 <div class="board">
-  {#each STATUSES as st (st)}
-    {@const list = items.filter((i) => i.task.status === st)}
+  {#each cols as col (col.key)}
+    {@const list = items.filter((i) => colOf(i) === col.key)}
     <section
       class="col"
-      class:drop={over === st}
-      aria-label={$t(`status.${st}`)}
-      ondragover={(e) => dragOver(e, st)}
-      ondragleave={() => over === st && (over = null)}
-      ondrop={(e) => drop(e, st)}
+      class:drop={over === col.key}
+      aria-label={col.label}
+      ondragover={(e) => dragOver(e, col.key)}
+      ondragleave={() => over === col.key && (over = null)}
+      ondrop={(e) => drop(e, col.key)}
     >
       <div class="hd">
-        <span class="status st-{st}">{ICON[st]} {$t(`status.${st}`)}</span>
+        {#if byStatus}
+          <span class="status st-{col.key}">{col.label}</span>
+        {:else}
+          <span>{col.label}</span>
+        {/if}
         <span class="n">{list.length}</span>
       </div>
       <div class="list">
         {#each list as item (`${item.plan_id}/${item.task.id}`)}
-          <TaskCard {item} {showPlan} draggable={!!onMove} />
+          <TaskCard {item} {showPlan} draggable={dnd} />
         {:else}
           <div class="none">{$t('board.emptyColumn')}</div>
         {/each}
@@ -88,6 +104,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
     padding: 10px 12px;
     font-weight: 600;
     border-bottom: 1px solid var(--line);

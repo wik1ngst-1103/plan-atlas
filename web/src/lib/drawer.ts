@@ -26,3 +26,6 @@ export const drawer = {
   back: () => store.update(drawerBack),
   close: () => store.set(drawerClose()),
 };
+
+/** "Show technical details" in the task panel (kept while the app is open). */
+export const showRaw = writable(false);

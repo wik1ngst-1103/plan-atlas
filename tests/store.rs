@@ -385,3 +385,32 @@ fn migrates_v1_database_to_v2() {
         .unwrap();
     assert_eq!(plans, 1, "existing rows survive the migration");
 }
+
+#[test]
+fn task_rows_carry_no_body_but_plan_tags() {
+    let (_d, s) = store();
+    s.upsert_plan(&plan(
+        "auth-001",
+        "demo",
+        &["domain/security", "type/feature"],
+        &[],
+    ))
+    .unwrap();
+    let rows = s.list_tasks(&TaskFilter::default()).unwrap();
+    assert_eq!(rows.len(), 2);
+    for r in &rows {
+        assert_eq!(r.task.body_md, "");
+        assert_eq!(r.plan_tags, vec!["domain/security", "type/feature"]);
+    }
+    let t1 = &rows[0].task;
+    assert_eq!(
+        (t1.id.as_str(), t1.name.as_str(), t1.complexity, t1.status),
+        ("T1", "First", Some(2), TaskStatus::Done)
+    );
+    assert_eq!(t1.tags, vec!["tech/jwt"]);
+    // The full plan still has the bodies.
+    assert_eq!(
+        s.get_plan("auth-001").unwrap().unwrap().tasks[0].body_md,
+        "body of First"
+    );
+}

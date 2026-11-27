@@ -129,22 +129,28 @@ fn query_summaries(
     Ok(rows)
 }
 
+/// Task rows without bodies: SQLite blanks `body_md` before the JSON reaches Rust.
 fn task_rows(conn: &Connection, clause: &str, args: &[&dyn ToSql]) -> Result<Vec<TaskRow>> {
     let sql = format!(
-        "SELECT t.plan_id, p.title, p.project, t.json
+        "SELECT t.plan_id, p.title, p.project, json_set(t.json, '$.body_md', ''),
+                (SELECT json_group_array(tag) FROM
+                    (SELECT tag FROM plan_tags g WHERE g.plan_id = t.plan_id ORDER BY rowid))
          FROM tasks t JOIN plans p ON p.id = t.plan_id {clause}
          ORDER BY t.plan_id, t.pos"
     );
     let mut stmt = conn.prepare(&sql)?;
-    let raw: Vec<(String, String, String, String)> = stmt
-        .query_map(args, |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+    let raw: Vec<(String, String, String, String, String)> = stmt
+        .query_map(args, |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
+        })?
         .collect::<rusqlite::Result<_>>()?;
     raw.into_iter()
-        .map(|(plan_id, plan_title, project, json)| {
+        .map(|(plan_id, plan_title, project, json, plan_tags)| {
             Ok(TaskRow {
                 plan_id,
                 plan_title,
                 project,
+                plan_tags: serde_json::from_str(&plan_tags)?,
                 task: serde_json::from_str::<Task>(&json)?,
             })
         })

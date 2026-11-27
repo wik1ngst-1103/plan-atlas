@@ -1,6 +1,7 @@
 <script lang="ts">
   import Drawer from './components/Drawer.svelte';
   import SideNav from './components/SideNav.svelte';
+  import Toast from './components/Toast.svelte';
   import TopBar from './components/TopBar.svelte';
   import { startLive } from './lib/live';
   import { route } from './lib/router';
@@ -31,6 +32,7 @@
   </main>
 </div>
 <Drawer />
+<Toast />
 
 <style>
   .shell {

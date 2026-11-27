@@ -1,5 +1,6 @@
 import type { LiveTask } from './generated/LiveTask';
 import type { Locale } from './i18n';
+import type { Effort } from './generated/Effort';
 import type { Model } from './generated/Model';
 import type { PlanSummary } from './generated/PlanSummary';
 import type { Section } from './generated/Section';
@@ -25,6 +26,18 @@ const DEFAULT_MODEL: Record<number, Model> = {
 /** The model Claude uses for a task: explicit, else from complexity, else null. */
 export const taskModel = (task: Task): Model | null =>
   task.model ?? (task.complexity ? (DEFAULT_MODEL[task.complexity] ?? null) : null);
+
+const DEFAULT_EFFORT: Record<number, Effort> = {
+  1: 'low',
+  2: 'low',
+  3: 'medium',
+  4: 'medium',
+  5: 'high',
+};
+
+/** How hard Claude thinks about a task: explicit, else from complexity, else null. */
+export const taskEffort = (task: Task): Effort | null =>
+  task.effort ?? (task.complexity ? (DEFAULT_EFFORT[task.complexity] ?? null) : null);
 
 export const MODEL_NAME: Record<Model, string> = { haiku: 'Haiku', sonnet: 'Sonnet', opus: 'Opus' };
 export const MODEL_COLOR: Record<Model, string> = {

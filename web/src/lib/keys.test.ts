@@ -36,6 +36,8 @@ describe('locale keys', () => {
       ...[1, 2, 3, 4, 5].map((x) => `diff.${x}`),
       ...[1, 2, 3, 4, 5].map((x) => `doc.s0${x}`),
       ...['haiku', 'sonnet', 'opus'].map((x) => `model.${x}`),
+      ...['low', 'medium', 'high'].map((x) => `effortWord.${x}`),
+      ...['type', 'domain', 'tech', 'none', 'other'].map((x) => `group.${x}`),
       ...[
         'non_utf8',
         'missing_frontmatter',

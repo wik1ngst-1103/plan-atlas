@@ -64,6 +64,7 @@
           plan_id: plan!.id,
           plan_title: plan!.title,
           project: plan!.project,
+          plan_tags: plan!.tags,
           task,
         }))
       : [],

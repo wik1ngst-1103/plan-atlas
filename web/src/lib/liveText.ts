@@ -30,6 +30,35 @@ export function gerund(phrase: string): string {
   return [ing, ...rest].join(' ');
 }
 
+const IRREGULAR_PAST: Record<string, string> = {
+  read: 'read',
+  run: 'ran',
+  get: 'got',
+  set: 'set',
+  put: 'put',
+  find: 'found',
+  write: 'wrote',
+  make: 'made',
+  stop: 'stopped',
+};
+
+/** English past form of the first word of a verb phrase: "run tests" → "ran tests". */
+export function pastTense(phrase: string): string {
+  const [verb, ...rest] = phrase.split(' ');
+  const w = verb.toLowerCase();
+  let past: string;
+  if (IRREGULAR_PAST[w]) past = IRREGULAR_PAST[w];
+  else if (w.endsWith('e')) past = w + 'd';
+  else if (/[^aeiou]y$/.test(w)) past = w.slice(0, -1) + 'ied';
+  else past = w + 'ed';
+  return [past, ...rest].join(' ');
+}
+
+/** The step as a past-tense sentence part for logs: "ran tests" / "đã chạy kiểm thử". */
+export function pastStep(t: T, l: Locale, step: Step): string {
+  return t('live.done', { what: l === 'vi' ? step.text_vi : pastTense(step.text_en) });
+}
+
 /** The step as a current-tense sentence part: "is reading token.rs" / "đang đọc token.rs". */
 export function presentStep(t: T, l: Locale, step: Step): string {
   return t('live.doing', { what: l === 'vi' ? step.text_vi : gerund(step.text_en) });
