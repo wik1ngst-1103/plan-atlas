@@ -72,8 +72,16 @@ That's it. On first run Plan Atlas asks whether to connect to Claude Code, impor
 | `plan-atlas setup` | Install the Skill, hooks and MCP server into Claude Code |
 | `plan-atlas uninstall-claude` | Remove everything `setup` added (your other settings are kept) |
 | `plan-atlas import` | Re-import plans from `~/.claude/plans/` |
+| `plan-atlas import <file\|folder>... [--project x]` | Import Markdown plans kept anywhere else (folders are searched for `*.md`) |
 | `plan-atlas mcp` | MCP server over stdio (started by Claude Code, not by you) |
 | `plan-atlas hook` | Hook handler (called by Claude Code, not by you) |
+
+### Importing plans from elsewhere
+
+Plans you keep outside `~/.claude/plans` can be copied in too; the originals are never changed and importing the same file again does nothing.
+
+- **In the browser:** click **Import plans** under the project list, choose some `.md` files or a whole folder, pick a project (or leave them unsorted) and press **Import**.
+- **In a terminal:** `plan-atlas import ~/notes/plans --project my-app`. Without `--project`, each plan goes to the git repository it sits in, else to the project of the Claude session that wrote it, else to `unsorted`. Hidden folders, `node_modules` and `target` are skipped.
 
 ### What `setup` changes
 

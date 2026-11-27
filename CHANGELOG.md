@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `plan-atlas import <file|folder>... [--project <name>]`: import Markdown plans from anywhere. Folders are searched recursively for `*.md` (hidden folders, `node_modules` and `target` skipped, at most 2,000 files). Without `--project`, a plan goes to its git repository's project, else to the project of the Claude session that wrote it, else to `unsorted`. Re-imports are idempotent and files already in the store are skipped.
+- Web **Import plans** button: upload `.md` files or a whole folder from the browser into an existing, new or unsorted project (`POST /api/import`; at most 200 files, 2 MB each, 20 MB in total).
+
+### Fixed
+
+- `plan-atlas import` now honours `CLAUDE_CONFIG_DIR`, like `setup` and the automatic import at startup.
+
 ## [0.1.0] - 2026-11-27
 
 ### Added

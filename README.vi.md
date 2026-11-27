@@ -73,8 +73,16 @@ Vậy thôi. Lần đầu chạy, Plan Atlas hỏi có kết nối với Claude 
 | `plan-atlas setup` | Cài Skill, hooks và MCP server vào Claude Code |
 | `plan-atlas uninstall-claude` | Gỡ mọi thứ `setup` đã thêm (giữ nguyên cài đặt khác của bạn) |
 | `plan-atlas import` | Nhập lại plan từ `~/.claude/plans/` |
+| `plan-atlas import <tệp\|thư mục>... [--project x]` | Nhập plan Markdown để ở nơi khác (thư mục được quét tìm `*.md`) |
 | `plan-atlas mcp` | MCP server qua stdio (Claude Code tự gọi) |
 | `plan-atlas hook` | Xử lý hook (Claude Code tự gọi) |
+
+### Nhập plan từ nơi khác
+
+Plan bạn để ngoài `~/.claude/plans` cũng có thể được sao chép vào; tệp gốc không bao giờ bị thay đổi và nhập lại cùng một tệp sẽ không tạo bản trùng.
+
+- **Trên trình duyệt:** bấm **Nhập plan** bên dưới danh sách dự án, chọn vài tệp `.md` hoặc cả một thư mục, chọn dự án (hoặc để chưa phân loại) rồi bấm **Nhập**.
+- **Trong terminal:** `plan-atlas import ~/notes/plans --project my-app`. Không có `--project` thì mỗi plan vào dự án theo kho git chứa nó, nếu không thì theo dự án của phiên Claude đã viết nó, còn lại vào `unsorted`. Thư mục ẩn, `node_modules` và `target` được bỏ qua.
 
 ### `setup` thay đổi những gì
 
