@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '../lib/api';
+  import { drawer } from '../lib/drawer';
   import type { ProjectSummary } from '../lib/generated/ProjectSummary';
   import { t } from '../lib/i18n';
   import { onDataChange } from '../lib/refetch';
@@ -41,6 +42,9 @@
       <div class="none">{$t('nav.noProjects')}</div>
     {/each}
   </div>
+  <button class="nav import" onclick={() => drawer.open({ type: 'import' })}>
+    <span class="plus" aria-hidden="true">＋</span>{$t('import.open')}
+  </button>
 </aside>
 
 <style>
@@ -81,6 +85,26 @@
     color: var(--faint);
     margin: 20px 10px 6px;
   }
+  .import {
+    width: 100%;
+    margin-top: 10px;
+    border: 1px dashed var(--line);
+    background: none;
+    font-size: 13.5px;
+    color: var(--mute);
+    text-align: left;
+  }
+  .import:hover,
+  .import:focus-visible {
+    border-color: var(--accent);
+    color: var(--accent);
+    outline: none;
+  }
+  .plus {
+    width: 9px;
+    text-align: center;
+    font-weight: 600;
+  }
   .none {
     color: var(--faint);
     font-size: 12.5px;
@@ -97,6 +121,10 @@
     h6,
     .proj {
       display: none;
+    }
+    .import {
+      width: auto;
+      margin-top: 0;
     }
   }
 </style>

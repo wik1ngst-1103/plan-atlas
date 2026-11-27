@@ -27,7 +27,10 @@ export function withLocale(path: string, locale: Locale): string {
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = { 'X-Plan-Atlas': '1' };
   const init: RequestInit = { method, headers };
-  if (body !== undefined) {
+  if (body instanceof FormData) {
+    // The browser sets the multipart Content-Type with its boundary.
+    init.body = body;
+  } else if (body !== undefined) {
     headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(body);
   }
@@ -49,4 +52,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
+  /** POST a `multipart/form-data` body. */
+  upload: <T>(path: string, form: FormData) => request<T>('POST', path, form),
 };

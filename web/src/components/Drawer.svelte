@@ -3,6 +3,7 @@
   import { t } from '../lib/i18n';
   import { knownPlans } from '../lib/planProject';
   import ActivityPanel from './ActivityPanel.svelte';
+  import ImportPanel from './ImportPanel.svelte';
   import PlanPanel from './PlanPanel.svelte';
   import TaskPanel from './TaskPanel.svelte';
   import TopicPanel from './TopicPanel.svelte';
@@ -21,7 +22,7 @@
           ? `topic|${x.tag}`
           : x.type === 'plan'
             ? `plan|${x.plan}`
-            : 'activity';
+            : x.type;
   const key = $derived(itemKey(top));
   const heading = $derived(
     !top
@@ -32,7 +33,9 @@
           ? $t('drawer.topic')
           : top.type === 'plan'
             ? $t('drawer.planSummary')
-            : $t('live.activityTitle'),
+            : top.type === 'import'
+              ? $t('import.title')
+              : $t('live.activityTitle'),
   );
 
   let aside: HTMLElement;
@@ -96,6 +99,8 @@
         <PlanPanel plan={top.plan} />
       {:else if top?.type === 'activity'}
         <ActivityPanel />
+      {:else if top?.type === 'import'}
+        <ImportPanel />
       {/if}
     {/key}
   </div>
