@@ -144,7 +144,6 @@
   "home.statRunning": "việc Claude đang làm",
   "card.kind": "📄 Plan · {project}",
   "card.open": "Mở plan “{title}”",
-  "plan.kind": "📄 Plan · {id}",
   "plan.imported": "Đã nhập",
   "plan.importedHint": "Plan này được viết ngoài mẫu chuẩn của Plan Atlas (ví dụ trước khi cài Plan Atlas), nên không có danh sách việc để theo dõi.",
   "plan.noTaskList": "Không có danh sách việc",
@@ -227,5 +226,14 @@
   "map.zoomOut": "Thu nhỏ",
   "map.fit": "Vừa khung",
   "search.recent": "Plan mới tạo",
-  "search.project": "Dự án"
+  "search.project": "Dự án",
+  "plan.readTime": "{n} phút đọc",
+  "plan.sections": "{n} mục",
+  "plan.sectionsOne": "1 mục",
+  "plan.idHint": "Mã plan — dùng mã này khi nhắc tới plan với Claude",
+  "toc.progress": "Mục {n} / {total}",
+  "doc.copyLink": "Sao chép liên kết tới mục này",
+  "doc.linkCopied": "Đã sao chép liên kết",
+  "doc.linkCopyFailed": "Không sao chép được liên kết",
+  "doc.backToTop": "Lên đầu trang"
 }

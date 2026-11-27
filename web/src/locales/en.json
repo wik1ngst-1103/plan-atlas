@@ -144,7 +144,6 @@
   "home.statRunning": "tasks Claude is working on",
   "card.kind": "📄 Plan · {project}",
   "card.open": "Open plan “{title}”",
-  "plan.kind": "📄 Plan · {id}",
   "plan.imported": "Imported",
   "plan.importedHint": "This plan was written outside the standard Plan Atlas layout (for example before Plan Atlas was installed), so it has no task list to track.",
   "plan.noTaskList": "No task list",
@@ -227,5 +226,14 @@
   "map.zoomOut": "Zoom out",
   "map.fit": "Fit",
   "search.recent": "Recently created plans",
-  "search.project": "Project"
+  "search.project": "Project",
+  "plan.readTime": "{n} min read",
+  "plan.sections": "{n} sections",
+  "plan.sectionsOne": "1 section",
+  "plan.idHint": "Plan ID — use it to refer to this plan when talking to Claude",
+  "toc.progress": "Section {n} of {total}",
+  "doc.copyLink": "Copy a link to this section",
+  "doc.linkCopied": "Link copied",
+  "doc.linkCopyFailed": "Could not copy the link",
+  "doc.backToTop": "Back to top"
 }
