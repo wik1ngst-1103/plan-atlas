@@ -21,6 +21,26 @@ pub fn project_root_name(cwd: &Path) -> Option<String> {
     Some(slugify(base)).filter(|s| !s.is_empty())
 }
 
+/// Like [`project_root_name`], but `None` when `path` is not inside a git
+/// repository (instead of falling back to the directory's own name).
+pub fn repo_project_name(path: &Path) -> Option<String> {
+    path.ancestors()
+        .any(|d| d.join(".git").exists())
+        .then(|| project_root_name(path))
+        .flatten()
+}
+
+/// A user-given project name as a directory-safe slug (`[a-z0-9-]`), or
+/// `unsorted` when nothing is left.
+pub fn sanitize_project(name: &str) -> String {
+    let s = slugify(name);
+    if s.is_empty() {
+        "unsorted".to_string()
+    } else {
+        s
+    }
+}
+
 /// For a checkout whose `.git` is a file, the main repository's directory.
 fn main_repo_dir(dir: &Path) -> Option<PathBuf> {
     let dot_git = dir.join(".git");
