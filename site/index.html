@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan Atlas: Claude Code plans in one place</title>
+<meta name="description" content="Plan Atlas collects the plans Claude Code writes across all your projects, shows them as documents with trackable tasks, and tells your whole team what Claude is doing in plain language. Free, open source, local-first.">
+<link rel="canonical" href="https://wik1ngst-1103.github.io/plan-atlas/">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f6f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141413" media="(prefers-color-scheme: dark)">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Plan Atlas">
+<meta property="og:title" content="Plan Atlas: Claude Code plans in one place">
+<meta property="og:description" content="Read every plan Claude writes as a document, track its tasks, and watch Claude work in plain language. Free, open source, runs on your machine.">
+<meta property="og:url" content="https://wik1ngst-1103.github.io/plan-atlas/">
+<meta property="og:image" content="https://wik1ngst-1103.github.io/plan-atlas/assets/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Plan Atlas: every plan Claude writes, in one place.">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="vi_VN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Plan Atlas: Claude Code plans in one place">
+<meta name="twitter:description" content="Read every plan Claude writes as a document, track its tasks, and watch Claude work in plain language.">
+<meta name="twitter:image" content="https://wik1ngst-1103.github.io/plan-atlas/assets/og.png">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="assets/fonts/chivo-mono-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="styles.css">
+<script>document.documentElement.classList.add('js');</script>
+</head>
+<body>
+<a class="skip" href="#main" data-i18n="skip">Skip to content</a>
+
+<header class="nav">
+  <div class="container nav__row">
+    <a class="wordmark" href="./" aria-label="Plan Atlas, home">
+      <svg class="wordmark__mark" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 17 L10 9 L14 13 L19 6" fill="none" stroke="currentColor" stroke-width="2"/><rect x="16.5" y="3.5" width="5" height="5" class="wordmark__stop"/></svg>
+      <span>Plan Atlas</span>
+    </a>
+    <nav class="nav__links" aria-label="Site" data-i18n-attr="aria-label:navLabel">
+      <div class="lang" role="group" aria-label="Language" data-i18n-attr="aria-label:langLabel">
+        <button type="button" class="lang__btn" data-lang="en" aria-pressed="true" lang="en">EN</button><button type="button" class="lang__btn" data-lang="vi" aria-pressed="false" lang="vi">VI</button>
+      </div>
+      <a class="nav__link" href="https://github.com/wik1ngst-1103/plan-atlas">GitHub</a>
+      <a class="btn btn--line btn--sm" href="#install" data-i18n="navInstall">Install</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="container">
+      <div class="hero__col">
+        <h1 id="hero-title" data-i18n="heroTitle">Every plan Claude writes, in one place.</h1>
+        <p class="lead hero__lead" data-i18n="heroLead">Read plans as documents, track their tasks, and watch Claude work, live.</p>
+        <div class="hero__actions">
+          <a class="btn btn--primary" href="#install" data-i18n="heroInstall">Install Plan Atlas</a>
+          <a class="btn btn--line" href="https://github.com/wik1ngst-1103/plan-atlas" data-i18n="heroGithub">Read the source on GitHub</a>
+        </div>
+        <p class="hero__terms" data-i18n="heroTerms">Free and open source (MIT). Runs on your own machine: macOS, Linux and Windows.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="showcase" aria-labelledby="overview-title">
+    <div class="container">
+      <figure class="shot shot--wide">
+        <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="assets/shots/overview-dark.webp" data-i18n-srcset="ovDark">
+          <img src="assets/shots/overview-light.webp" data-i18n-src="ovImg" width="2000" height="1250" fetchpriority="high" decoding="async"
+               alt="The Plan Atlas overview: totals for plans and tasks, then plan cards grouped by project, one showing Claude working on a task with two assistants."
+               data-i18n-attr="alt:ovAlt">
+        </picture>
+      </figure>
+      <div class="showcase__under">
+        <div class="showcase__text">
+          <h2 id="overview-title" data-i18n="ovTitle">All your projects on one screen</h2>
+          <p class="lead" data-i18n="ovLead">Plans from every repository, grouped by project, with live progress on every card.</p>
+          <dl class="facts">
+            <div><dt data-i18n="f1t">Finds what exists</dt><dd data-i18n="f1d">Plans in <code>~/.claude/plans</code> arrive on first launch.</dd></div>
+            <div><dt data-i18n="f2t">Takes the rest</dt><dd data-i18n="f2d">Import any Markdown file or folder.</dd></div>
+            <div><dt data-i18n="f3t">Leaves sources alone</dt><dd data-i18n="f3d">Source files are never modified.</dd></div>
+          </dl>
+        </div>
+        <figure class="phone">
+          <div class="shot shot--phone">
+            <img src="assets/shots/phone-plan.webp" width="780" height="1688" loading="lazy" decoding="async"
+                 alt="Plan Atlas in a narrow window: a plan titled Migrate sessions to JWT + RBAC with its status, progress and topics."
+                 data-i18n-attr="alt:phoneAlt">
+          </div>
+          <figcaption data-i18n="phoneCap">The same plan in a narrow window.</figcaption>
+        </figure>
+      </div>
+      <p class="note" data-i18n="ovNote">Screens on this page show sample plans, not real projects.</p>
+    </div>
+  </section>
+
+  <section class="stack" aria-labelledby="stack-title">
+    <div class="container stack__grid">
+      <div class="stack__pane">
+        <h2 id="stack-title" data-i18n="stTitle">Five ways to read a plan</h2>
+        <ol class="stack__index">
+          <li><a href="#v-doc" data-i18n="st1">Document</a></li>
+          <li><a href="#v-tasks" data-i18n="st2">Tasks</a></li>
+          <li><a href="#v-board" data-i18n="st3">Board</a></li>
+          <li><a href="#v-map" data-i18n="st4">Map</a></li>
+          <li><a href="#v-search" data-i18n="st5">Search</a></li>
+        </ol>
+      </div>
+      <div class="stack__scroll">
+        <figure class="view" id="v-doc">
+          <div class="shot">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="assets/shots/plan-dark.webp">
+              <img src="assets/shots/plan-light.webp" width="2000" height="1250" loading="lazy" decoding="async" alt="A plan shown as a document: title, status, related plans, then numbered sections with an outline on the right." data-i18n-attr="alt:docAlt">
+            </picture>
+          </div>
+          <figcaption><h3 data-i18n="docT">A plan reads like a document</h3><p data-i18n="docD">Five fixed sections, overview to rollback, with an outline that follows you.</p></figcaption>
+        </figure>
+        <figure class="view" id="v-tasks">
+          <div class="shot">
+            <img src="assets/shots/plan-breakdown-light.webp" width="2000" height="1250" loading="lazy" decoding="async" alt="The task breakdown of a plan: each task with its status, a difficulty from 1 to 5 and the Claude model it uses." data-i18n-attr="alt:tasksAlt">
+          </div>
+          <figcaption><h3 data-i18n="tasksT">Each task says how hard it is</h3><p data-i18n="tasksD">Complexity from 1 to 5 sets the model, Haiku, Sonnet or Opus, and the effort.</p></figcaption>
+        </figure>
+        <figure class="view" id="v-board">
+          <div class="shot">
+            <img src="assets/shots/board-light.webp" width="2000" height="1250" loading="lazy" decoding="async" alt="The task board with columns for to do, in progress, review and done, filled with task cards from several plans." data-i18n-attr="alt:boardAlt">
+          </div>
+          <figcaption><h3 data-i18n="boardT">Drag a card to change its status</h3><p data-i18n="boardD">One board for the tasks of every plan: to do, in progress, review, done.</p></figcaption>
+        </figure>
+        <figure class="view" id="v-map">
+          <div class="shot">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="assets/shots/map-dark.webp">
+              <img src="assets/shots/map-light.webp" width="2000" height="1250" loading="lazy" decoding="async" alt="The knowledge map: a topic list beside a graph of plans joined by dependency arrows and shared-topic lines." data-i18n-attr="alt:mapAlt">
+            </picture>
+          </div>
+          <figcaption><h3 data-i18n="mapT">See which plans depend on which</h3><p data-i18n="mapD">Topics come from one shared taxonomy, and a graph links plans that build on each other.</p></figcaption>
+        </figure>
+        <figure class="view" id="v-search">
+          <div class="shot">
+            <img src="assets/shots/search-light.webp" width="2000" height="1250" loading="lazy" decoding="async" alt="The search box open with results grouped into plans, tasks and topics, matches highlighted." data-i18n-attr="alt:searchAlt">
+          </div>
+          <figcaption><h3 data-i18n="searchT">Search that ignores accents</h3><p data-i18n="searchD">Plans, tasks and topics in one box. Typing “bao mat” finds “bảo mật”.</p></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section class="band" aria-labelledby="team-title">
+    <div class="container band__grid">
+      <div class="band__text">
+        <h2 id="team-title" data-i18n="teamTitle">Readable by the whole team</h2>
+        <p class="lead" data-i18n="teamLead">What Claude and its subagents do becomes plain sentences, filed under the plan and task.</p>
+        <table class="board">
+          <thead><tr><th scope="col" data-i18n="thRan">Claude ran</th><th scope="col" data-i18n="thReads">Your team reads</th></tr></thead>
+          <tbody>
+            <tr><td><code>Read refresh.rs</code></td><td data-i18n="r1">Coding assistant read refresh.rs</td></tr>
+            <tr><td><code>Grep refresh_token</code></td><td data-i18n="r2">Research assistant searched the code</td></tr>
+            <tr><td><code>Edit refresh.rs</code></td><td data-i18n="r3">Coding assistant edited refresh.rs</td></tr>
+            <tr><td><code>cargo test refresh</code></td><td data-i18n="r4">Coding assistant ran tests</td></tr>
+          </tbody>
+        </table>
+        <p class="band__note" data-i18n="teamNote">Developers can still open the raw tool calls with one click.</p>
+      </div>
+      <figure class="shot shot--portrait">
+        <picture data-lang-only="en">
+          <source media="(prefers-color-scheme: dark)" srcset="assets/shots/activity-dark.webp">
+          <img src="assets/shots/activity-light.webp" width="900" height="1260" loading="lazy" decoding="async" alt="A task panel titled Refresh token flow: two assistants at work, one running tests and one searching the code, above a timeline of their steps.">
+        </picture>
+        <img data-lang-only="vi" hidden src="assets/shots/activity-vi.webp" width="900" height="1260" loading="lazy" decoding="async" alt="Bảng chi tiết việc Refresh token flow: hai trợ lý đang làm, một trợ lý chạy kiểm thử, một trợ lý tìm trong code, bên dưới là dòng thời gian các bước." lang="vi">
+      </figure>
+    </div>
+  </section>
+
+  <section class="how" aria-labelledby="how-title">
+    <div class="container">
+      <div class="head head--split">
+        <h2 id="how-title" data-i18n="howTitle">One command connects Claude Code</h2>
+        <div class="cmd cmd--inline">
+          <code id="cmd-setup">plan-atlas setup</code>
+          <button type="button" class="copy" data-copy="cmd-setup" data-i18n="copy">Copy</button>
+        </div>
+      </div>
+      <table class="pieces">
+        <thead><tr><th scope="col" data-i18n="thPiece">It adds</th><th scope="col" data-i18n="thDoes">So that</th><th scope="col" data-i18n="thWhere">Where</th></tr></thead>
+        <tbody>
+          <tr><th scope="row" data-i18n="p1">A Skill</th><td data-i18n="p1d">Claude knows where and how to write plans</td><td><code>~/.claude/skills/plan-atlas/SKILL.md</code></td></tr>
+          <tr><th scope="row" data-i18n="p2">Hooks</th><td data-i18n="p2d">Plan Atlas sees what Claude and each subagent is doing</td><td><code>~/.claude/settings.json</code> <span data-i18n="p2w">(backed up first)</span></td></tr>
+          <tr><th scope="row" data-i18n="p3">An MCP server</th><td data-i18n="p3d">Claude creates plans, links related ones and updates tasks</td><td><code>claude mcp add … plan-atlas mcp</code></td></tr>
+        </tbody>
+      </table>
+      <p class="note" data-i18n="howNote"><code>plan-atlas uninstall-claude</code> removes all three and leaves your other settings untouched.</p>
+    </div>
+  </section>
+
+  <section class="privacy" aria-labelledby="privacy-title">
+    <div class="container">
+      <h2 id="privacy-title" data-i18n="prTitle">Your plans never leave your machine</h2>
+      <ul class="plates">
+        <li class="plate"><span class="plate__fig">~9&nbsp;MB</span><span class="plate__label" data-i18n="pl1">One binary: server, MCP, hooks and interface</span></li>
+        <li class="plate"><span class="plate__fig">~16&nbsp;MB</span><span class="plate__label" data-i18n="pl2">Memory at idle with 1,000 plans indexed</span></li>
+        <li class="plate"><span class="plate__fig">127.0.0.1</span><span class="plate__label" data-i18n="pl3">The only address it listens on</span></li>
+      </ul>
+      <ul class="claims">
+        <li data-i18n="c1">No telemetry and no outbound connections.</li>
+        <li data-i18n="c2">Requests must name the local server, blocking DNS rebinding.</li>
+        <li data-i18n="c3">The hook finishes within 200 ms and never holds Claude up.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="install" id="install" aria-labelledby="install-title">
+    <div class="container install__grid">
+      <div class="install__head">
+        <h2 id="install-title" data-i18n="inTitle">Install in one line</h2>
+        <p class="lead" data-i18n="inLead">Install it globally, then run <code>plan-atlas</code>. It opens at <code>127.0.0.1:7420</code>.</p>
+      </div>
+      <div class="install__body" data-tabs>
+        <div class="tabs" role="tablist" aria-label="Platform" data-i18n-attr="aria-label:platform">
+          <button type="button" role="tab" id="t-sh" aria-controls="p-sh" aria-selected="true">macOS, Linux</button><button type="button" role="tab" id="t-ps" aria-controls="p-ps" aria-selected="false" tabindex="-1">Windows</button><button type="button" role="tab" id="t-brew" aria-controls="p-brew" aria-selected="false" tabindex="-1">Homebrew</button><button type="button" role="tab" id="t-npm" aria-controls="p-npm" aria-selected="false" tabindex="-1">npm</button>
+        </div>
+        <div class="panel" role="tabpanel" id="p-sh" aria-labelledby="t-sh">
+          <h3 class="panel__label">macOS, Linux</h3>
+          <div class="cmd"><code id="cmd-sh">curl --proto '=https' --tlsv1.2 -LsSf https://github.com/wik1ngst-1103/plan-atlas/releases/latest/download/plan-atlas-installer.sh | sh</code><button type="button" class="copy" data-copy="cmd-sh" data-i18n="copy">Copy</button></div>
+        </div>
+        <div class="panel" role="tabpanel" id="p-ps" aria-labelledby="t-ps">
+          <h3 class="panel__label">Windows (PowerShell)</h3>
+          <div class="cmd"><code id="cmd-ps">powershell -ExecutionPolicy Bypass -c "irm https://github.com/wik1ngst-1103/plan-atlas/releases/latest/download/plan-atlas-installer.ps1 | iex"</code><button type="button" class="copy" data-copy="cmd-ps" data-i18n="copy">Copy</button></div>
+        </div>
+        <div class="panel" role="tabpanel" id="p-brew" aria-labelledby="t-brew">
+          <h3 class="panel__label">Homebrew</h3>
+          <div class="cmd"><code id="cmd-brew">brew install wik1ngst-1103/tap/plan-atlas</code><button type="button" class="copy" data-copy="cmd-brew" data-i18n="copy">Copy</button></div>
+        </div>
+        <div class="panel" role="tabpanel" id="p-npm" aria-labelledby="t-npm">
+          <h3 class="panel__label">npm</h3>
+          <div class="cmd"><code id="cmd-npm">npm install -g plan-atlas</code><button type="button" class="copy" data-copy="cmd-npm" data-i18n="copy">Copy</button></div>
+        </div>
+        <p class="install__note" data-i18n="inNote">Installers are published with each GitHub release, starting with v0.1.0. Prefer to compile it? <a href="https://github.com/wik1ngst-1103/plan-atlas#installation">Build from source</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="faq" aria-labelledby="faq-title">
+    <div class="container faq__grid">
+      <h2 id="faq-title" data-i18n="faqTitle">Before you install</h2>
+      <div class="faq__list">
+        <details>
+          <summary data-i18n="q1">Does it send my plans anywhere?</summary>
+          <p data-i18n="a1">No. The server listens only on 127.0.0.1, collects no telemetry and makes no outbound connections. Plans stay as Markdown files in <code>~/.plan-atlas</code>.</p>
+        </details>
+        <details>
+          <summary data-i18n="q2">Which systems does it run on?</summary>
+          <p data-i18n="a2">macOS, Linux and Windows, from one self-contained binary.</p>
+        </details>
+        <details>
+          <summary data-i18n="q3">Is it free?</summary>
+          <p data-i18n="a3">Yes. Plan Atlas is open source under the MIT License, with no account and no paid tier.</p>
+        </details>
+        <details>
+          <summary data-i18n="q4">Can teammates open it from their own computers?</summary>
+          <p data-i18n="a4">Not today: it serves only the machine it runs on. Share your screen or sit together; a shareable static export of a plan is on the roadmap.</p>
+        </details>
+        <details>
+          <summary data-i18n="q5">Do I have to change how I work with Claude?</summary>
+          <p data-i18n="a5">No. After <code>plan-atlas setup</code>, Claude files its plans through Plan Atlas on its own. Plans written in plan mode are registered once you approve them.</p>
+        </details>
+        <details>
+          <summary data-i18n="q6">How do I uninstall it?</summary>
+          <p data-i18n="a6">Run <code>plan-atlas uninstall-claude</code> to remove the Skill, hooks and MCP entry, then remove the binary the way you installed it. Your data is in <code>~/.plan-atlas</code>; delete it if you no longer need it.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <div class="container footer__grid">
+    <p class="footer__mark">Plan Atlas</p>
+    <p class="footer__text" data-i18n="footText">Free software under the MIT License, built in the open on GitHub.</p>
+    <ul class="footer__links">
+      <li><a href="https://github.com/wik1ngst-1103/plan-atlas">GitHub</a></li>
+      <li><a href="https://github.com/wik1ngst-1103/plan-atlas/blob/main/README.md">README.md</a></li>
+      <li><a href="https://github.com/wik1ngst-1103/plan-atlas/blob/main/README.vi.md" lang="vi">README.vi.md</a></li>
+      <li><a href="https://github.com/wik1ngst-1103/plan-atlas/blob/main/CHANGELOG.md">Changelog</a></li>
+      <li><a href="https://github.com/wik1ngst-1103/plan-atlas/blob/main/SECURITY.md" data-i18n="fSec">Security</a></li>
+      <li><a href="https://github.com/wik1ngst-1103/plan-atlas/blob/main/LICENSE" data-i18n="fLic">MIT License</a></li>
+    </ul>
+  </div>
+</footer>
+
+<p class="toast" role="status" aria-live="polite" id="copy-status"></p>
+<script src="main.js" defer></script>
+</body>
+</html>
