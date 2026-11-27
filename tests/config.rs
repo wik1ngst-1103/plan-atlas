@@ -58,3 +58,28 @@ fn taxonomy_default_written_and_loaded() {
     }
     assert_eq!(tax.tags["tech/jwt"].label_vi, "JWT – token đăng nhập");
 }
+
+#[test]
+fn broken_config_falls_back_to_defaults() {
+    let tmp = tempfile::tempdir().unwrap();
+    let paths = Paths::from_home(tmp.path().to_path_buf());
+    std::fs::write(&paths.config, "port = [not toml").unwrap();
+    assert_eq!(Config::load(&paths), Config::default());
+    assert_eq!(
+        std::fs::read_to_string(&paths.config).unwrap(),
+        "port = [not toml"
+    );
+}
+
+#[test]
+fn broken_taxonomy_falls_back_without_overwriting() {
+    let tmp = tempfile::tempdir().unwrap();
+    let paths = Paths::from_home(tmp.path().to_path_buf());
+    std::fs::write(&paths.taxonomy, "[tags.\"x\"\nbroken").unwrap();
+    let tax = Taxonomy::load(&paths);
+    assert!(tax.contains("tech/jwt"));
+    assert_eq!(
+        std::fs::read_to_string(&paths.taxonomy).unwrap(),
+        "[tags.\"x\"\nbroken"
+    );
+}

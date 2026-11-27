@@ -27,13 +27,30 @@ impl Taxonomy {
     /// (the file on disk is left untouched).
     pub fn load(paths: &Paths) -> Taxonomy {
         if !paths.taxonomy.exists() {
-            let _ = fs::create_dir_all(&paths.home);
-            let _ = fs::write(&paths.taxonomy, DEFAULT_TAXONOMY);
+            if let Err(e) = fs::create_dir_all(&paths.home) {
+                eprintln!("plan-atlas: cannot create {}: {e}", paths.home.display());
+            }
+            if let Err(e) = fs::write(&paths.taxonomy, DEFAULT_TAXONOMY) {
+                eprintln!("plan-atlas: cannot write {}: {e}", paths.taxonomy.display());
+            }
         }
-        fs::read_to_string(&paths.taxonomy)
-            .ok()
-            .and_then(|s| toml::from_str(&s).ok())
-            .unwrap_or_else(Taxonomy::embedded_default)
+        let text = match fs::read_to_string(&paths.taxonomy) {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!(
+                    "plan-atlas: cannot read {}: {e}; using built-in taxonomy",
+                    paths.taxonomy.display()
+                );
+                return Taxonomy::embedded_default();
+            }
+        };
+        toml::from_str(&text).unwrap_or_else(|e| {
+            eprintln!(
+                "plan-atlas: invalid {}: {e}; using built-in taxonomy",
+                paths.taxonomy.display()
+            );
+            Taxonomy::embedded_default()
+        })
     }
 
     pub fn contains(&self, tag: &str) -> bool {

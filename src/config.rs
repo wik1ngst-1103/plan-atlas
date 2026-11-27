@@ -63,12 +63,27 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Missing or unreadable/invalid file yields defaults.
+    /// Missing file yields defaults silently; an unreadable or invalid file
+    /// yields defaults with a warning on stderr (the file is not modified).
     pub fn load(paths: &Paths) -> Config {
-        fs::read_to_string(&paths.config)
-            .ok()
-            .and_then(|s| toml::from_str(&s).ok())
-            .unwrap_or_default()
+        let text = match fs::read_to_string(&paths.config) {
+            Ok(t) => t,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Config::default(),
+            Err(e) => {
+                eprintln!(
+                    "plan-atlas: cannot read {}: {e}; using defaults",
+                    paths.config.display()
+                );
+                return Config::default();
+            }
+        };
+        toml::from_str(&text).unwrap_or_else(|e| {
+            eprintln!(
+                "plan-atlas: invalid {}: {e}; using defaults",
+                paths.config.display()
+            );
+            Config::default()
+        })
     }
 
     pub fn save(&self, paths: &Paths) -> io::Result<()> {
