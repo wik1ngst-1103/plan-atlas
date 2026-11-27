@@ -34,7 +34,19 @@ jobs:
           npm run build
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test
+      - name: cargo test
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo test --no-fail-fast 2>&1 | tee test.log || {
+            # Surface each failing test and its panic as an annotation so it is
+            # visible on the PR without opening (or having rights to) the logs.
+            grep -E "^thread '.*' .*panicked at|^---- .* stdout ----|^test .* FAILED$" test.log \
+              | head -n 40 | sed 's/^/::error title=cargo test::/'
+            grep -A6 "panicked at" test.log | head -n 120 | tr '\n' ' ' | cut -c1-3500 \
+              | sed 's/^/::error title=panic details::/'
+            exit 1
+          }
 
   web:
     runs-on: ubuntu-latest
