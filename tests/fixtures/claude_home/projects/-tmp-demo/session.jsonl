@@ -1,3 +1,4 @@
 {"type":"user","cwd":"{{CWD}}","message":"start"}
 not json at all
-{"type":"assistant","message":"wrote plans/demo-plan.md and plans/with-fm.md"}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"/home/u/.claude/plans/demo-plan.md","content":"x"}}]}}
+{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Write","input":{"file_path":"/home/u/.claude/plans/with-fm.md","content":"x"}}]}}
