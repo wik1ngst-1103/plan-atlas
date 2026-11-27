@@ -66,24 +66,26 @@ impl Config {
     /// Missing file yields defaults silently; an unreadable or invalid file
     /// yields defaults with a warning on stderr (the file is not modified).
     pub fn load(paths: &Paths) -> Config {
+        match Config::load_strict(paths) {
+            Ok(c) => c.unwrap_or_default(),
+            Err(e) => {
+                eprintln!("plan-atlas: {e}; using defaults");
+                Config::default()
+            }
+        }
+    }
+
+    /// `Ok(None)` if the file is missing; an error if it cannot be read or
+    /// parsed. Use before `save` so a broken file is never overwritten.
+    pub fn load_strict(paths: &Paths) -> Result<Option<Config>, String> {
         let text = match fs::read_to_string(&paths.config) {
             Ok(t) => t,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => return Config::default(),
-            Err(e) => {
-                eprintln!(
-                    "plan-atlas: cannot read {}: {e}; using defaults",
-                    paths.config.display()
-                );
-                return Config::default();
-            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(format!("cannot read {}: {e}", paths.config.display())),
         };
-        toml::from_str(&text).unwrap_or_else(|e| {
-            eprintln!(
-                "plan-atlas: invalid {}: {e}; using defaults",
-                paths.config.display()
-            );
-            Config::default()
-        })
+        toml::from_str(&text)
+            .map(Some)
+            .map_err(|e| format!("invalid {}: {e}", paths.config.display()))
     }
 
     pub fn save(&self, paths: &Paths) -> io::Result<()> {

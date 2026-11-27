@@ -83,3 +83,14 @@ fn broken_taxonomy_falls_back_without_overwriting() {
         "[tags.\"x\"\nbroken"
     );
 }
+
+#[test]
+fn load_strict_distinguishes_missing_valid_invalid() {
+    let tmp = tempfile::tempdir().unwrap();
+    let paths = Paths::from_home(tmp.path().to_path_buf());
+    assert_eq!(Config::load_strict(&paths).unwrap(), None);
+    std::fs::write(&paths.config, "port = 7425\n").unwrap();
+    assert_eq!(Config::load_strict(&paths).unwrap().unwrap().port, 7425);
+    std::fs::write(&paths.config, "port = \n").unwrap();
+    assert!(Config::load_strict(&paths).is_err());
+}

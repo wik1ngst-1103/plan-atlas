@@ -156,6 +156,7 @@ fn print_mcp(status: &plan_atlas::setup::McpStatus) {
     match status {
         McpStatus::Registered => println!("  MCP server: registered"),
         McpStatus::AlreadyRegistered => println!("  MCP server: already registered"),
+        McpStatus::Updated => println!("  MCP server: re-registered with the current binary"),
         McpStatus::Removed => println!("  MCP server: removed"),
         McpStatus::Manual { command } => {
             println!("  MCP server: `claude` not found on PATH; run this yourself:\n    {command}")
@@ -180,9 +181,10 @@ fn print_settings(r: &plan_atlas::setup::SetupReport, settings: &std::path::Path
 fn run_setup(yes: bool) -> Result<(), String> {
     use plan_atlas::setup;
     let home = setup::claude_home().ok_or("cannot determine Claude Code config directory")?;
-    let bin = std::env::current_exe()
-        .and_then(|p| p.canonicalize())
-        .map_err(|e| format!("cannot locate the plan-atlas binary: {e}"))?;
+    // Not canonicalized: keep a stable symlink path (e.g. Homebrew's
+    // bin/plan-atlas) rather than a version-specific target.
+    let bin =
+        std::env::current_exe().map_err(|e| format!("cannot locate the plan-atlas binary: {e}"))?;
     let claude = setup::find_claude_cli();
     let settings = setup::settings_path(&home);
     println!("plan-atlas setup will:");
@@ -218,12 +220,26 @@ fn run_setup(yes: bool) -> Result<(), String> {
     println!("  Skill: {}", r.skill_path.display());
     print_settings(&r, &settings);
     print_mcp(&r.mcp);
-    let mut config = plan_atlas::config::Config::load(&paths);
-    config.setup_done = true;
+    set_setup_done(&paths, true)
+}
+
+/// Record `setup_done` unless config.toml exists but cannot be parsed (a
+/// broken file is left untouched, with a warning).
+fn set_setup_done(paths: &plan_atlas::config::Paths, done: bool) -> Result<(), String> {
+    let mut config = match plan_atlas::config::Config::load_strict(paths) {
+        Ok(c) => c.unwrap_or_default(),
+        Err(e) => {
+            eprintln!("plan-atlas: warning: {e}; not recording setup_done (file left unchanged)");
+            return Ok(());
+        }
+    };
+    if config.setup_done == done {
+        return Ok(());
+    }
+    config.setup_done = done;
     config
-        .save(&paths)
-        .map_err(|e| format!("cannot save {}: {e}", paths.config.display()))?;
-    Ok(())
+        .save(paths)
+        .map_err(|e| format!("cannot save {}: {e}", paths.config.display()))
 }
 
 fn run_uninstall(yes: bool) -> Result<(), String> {
@@ -254,12 +270,5 @@ fn run_uninstall(yes: bool) -> Result<(), String> {
     print_settings(&r, &settings);
     print_mcp(&r.mcp);
     let paths = plan_atlas::config::Paths::resolve();
-    let mut config = plan_atlas::config::Config::load(&paths);
-    if config.setup_done {
-        config.setup_done = false;
-        config
-            .save(&paths)
-            .map_err(|e| format!("cannot save {}: {e}", paths.config.display()))?;
-    }
-    Ok(())
+    set_setup_done(&paths, false)
 }

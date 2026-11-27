@@ -249,7 +249,7 @@ fn fake_claude(dir: &Path, get_exit: i32) -> (PathBuf, PathBuf) {
     fs::write(
         &script,
         format!(
-            "#!/bin/sh\necho \"$@\" >> '{}'\nif [ \"$2\" = get ]; then exit {get_exit}; fi\nexit 0\n",
+            "#!/bin/sh\necho \"$@\" >> '{}'\nif [ \"$2\" = get ]; then echo '  Command: {BIN}'; exit {get_exit}; fi\nexit 0\n",
             log.display()
         ),
     )
@@ -378,4 +378,57 @@ fn cli_setup_and_uninstall_with_yes() {
         serde_json::from_str(&fs::read_to_string(dir.path().join("claude/settings.json")).unwrap())
             .unwrap();
     assert_eq!(v, json!({}));
+}
+
+#[cfg(unix)]
+#[test]
+fn stale_mcp_registration_is_replaced() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let log = dir.path().join("claude.log");
+    let claude = dir.path().join("claude");
+    fs::write(
+        &claude,
+        format!(
+            "#!/bin/sh\necho \"$@\" >> '{}'\nif [ \"$2\" = get ]; then echo '  Command: /old/Cellar/plan-atlas/0.1.0/bin/plan-atlas'; echo '  Args: mcp'; fi\nexit 0\n",
+            log.display()
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&claude, fs::Permissions::from_mode(0o755)).unwrap();
+    let home = dir.path().join("claude-home");
+    let r = install(
+        &home,
+        Path::new(BIN),
+        &Taxonomy::embedded_default(),
+        Some(&claude),
+    )
+    .unwrap();
+    assert!(matches!(r.mcp, McpStatus::Updated), "{:?}", r.mcp);
+    assert_eq!(
+        fs::read_to_string(&log).unwrap(),
+        format!(
+            "mcp get plan-atlas\nmcp remove --scope user plan-atlas\nmcp add --transport stdio --scope user plan-atlas -- {BIN} mcp\n"
+        )
+    );
+}
+
+#[test]
+fn setup_does_not_overwrite_invalid_config() {
+    let dir = tempfile::tempdir().unwrap();
+    let atlas = dir.path().join("atlas");
+    fs::create_dir_all(&atlas).unwrap();
+    let bad = "port = 7420\nlocale = \"vi\"\nthis is not toml\n";
+    fs::write(atlas.join("config.toml"), bad).unwrap();
+    cli(dir.path())
+        .args(["setup", "--yes"])
+        .assert()
+        .success()
+        .stderr(predicates::str::contains("config.toml"));
+    assert_eq!(fs::read_to_string(atlas.join("config.toml")).unwrap(), bad);
+    cli(dir.path())
+        .args(["uninstall-claude", "--yes"])
+        .assert()
+        .success();
+    assert_eq!(fs::read_to_string(atlas.join("config.toml")).unwrap(), bad);
 }

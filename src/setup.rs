@@ -34,6 +34,8 @@ const GROUP_ORDER: [&str; 3] = ["type", "domain", "tech"];
 pub enum McpStatus {
     Registered,
     AlreadyRegistered,
+    /// Was registered with a different binary path; removed and re-added.
+    Updated,
     /// Uninstall: `claude mcp remove` succeeded (or it was not registered).
     Removed,
     /// `claude` is not on PATH: the user should run `command`.
@@ -333,9 +335,10 @@ fn backup_file(path: &Path) -> Result<PathBuf> {
     Ok(backup)
 }
 
-fn run_claude(claude: &Path, args: &[&str]) -> Result<(), String> {
+/// Run `claude <args>`; stdout on success.
+fn run_claude(claude: &Path, args: &[&str]) -> Result<String, String> {
     match Command::new(claude).args(args).output() {
-        Ok(out) if out.status.success() => Ok(()),
+        Ok(out) if out.status.success() => Ok(String::from_utf8_lossy(&out.stdout).into_owned()),
         Ok(out) => {
             let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
             let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
@@ -352,10 +355,25 @@ fn register_mcp(claude_cli: Option<&Path>, bin: &Path) -> McpStatus {
             command: mcp_add_command("claude", bin),
         };
     };
-    if run_claude(claude, &["mcp", "get", SERVER_NAME]).is_ok() {
-        return McpStatus::AlreadyRegistered;
-    }
     let bin_s = bin.display().to_string();
+    let mut replaced = false;
+    if let Ok(details) = run_claude(claude, &["mcp", "get", SERVER_NAME]) {
+        if details.contains(&bin_s) {
+            return McpStatus::AlreadyRegistered;
+        }
+        // Registered with another (e.g. pre-upgrade) binary: replace it.
+        if let Err(error) = run_claude(claude, &["mcp", "remove", "--scope", "user", SERVER_NAME]) {
+            return McpStatus::Failed {
+                command: format!(
+                    "{} && {}",
+                    mcp_remove_command(&claude.display().to_string()),
+                    mcp_add_command(&claude.display().to_string(), bin)
+                ),
+                error,
+            };
+        }
+        replaced = true;
+    }
     let args = [
         "mcp",
         "add",
@@ -369,7 +387,8 @@ fn register_mcp(claude_cli: Option<&Path>, bin: &Path) -> McpStatus {
         "mcp",
     ];
     match run_claude(claude, &args) {
-        Ok(()) => McpStatus::Registered,
+        Ok(_) if replaced => McpStatus::Updated,
+        Ok(_) => McpStatus::Registered,
         Err(error) => McpStatus::Failed {
             command: mcp_add_command(&claude.display().to_string(), bin),
             error,
@@ -384,7 +403,7 @@ fn unregister_mcp(claude_cli: Option<&Path>) -> McpStatus {
         };
     };
     match run_claude(claude, &["mcp", "remove", "--scope", "user", SERVER_NAME]) {
-        Ok(()) => McpStatus::Removed,
+        Ok(_) => McpStatus::Removed,
         Err(e) if e.to_lowercase().contains("not found") => McpStatus::Removed,
         Err(error) => McpStatus::Failed {
             command: mcp_remove_command(&claude.display().to_string()),
