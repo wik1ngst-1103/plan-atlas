@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plan Atlas</title>
+<style>
+:root{--bg:#f6f6f3;--panel:#fff;--ink:#1c1c1a;--mute:#6b6b66;--faint:#9a9a93;--line:#e5e4df;--accent:#3b5bdb;--accent-soft:#eef1fb;--ok:#2b8a3e;--ok-soft:#e9f6ec;--warn:#d9480f;--warn-soft:#fff1e6;--run:#1971c2;--run-soft:#e7f1fb;--tech:#e6f4ea;--techi:#2b8a3e;--type:#f1f0ec;--typei:#55554f;--shadow:0 10px 40px rgba(0,0,0,.14)}
+@media (prefers-color-scheme:dark){:root{--bg:#141413;--panel:#1d1d1b;--ink:#ecebe6;--mute:#a3a39c;--faint:#77776f;--line:#2e2e2b;--accent:#8ea4ff;--accent-soft:#23263a;--ok:#69db7c;--ok-soft:#1c2e21;--warn:#ffa94d;--warn-soft:#33261a;--run:#74c0fc;--run-soft:#1a2733;--tech:#1f3326;--techi:#8ce99a;--type:#2a2a27;--typei:#c9c8c1;--shadow:0 10px 40px rgba(0,0,0,.5)}}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.55 system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+a{color:var(--accent);text-decoration:none;cursor:pointer}a:hover{text-decoration:underline}
+button,select{font:inherit;font-size:13px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+.shell{display:grid;grid-template-columns:232px 1fr;grid-template-rows:56px 1fr;height:100vh}
+.top{grid-column:1/3;display:flex;align-items:center;gap:16px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+.logo{font-weight:700;font-size:15px;width:196px;flex:none}
+.crumbs{flex:1;min-width:0;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crumbs b{color:var(--ink);font-weight:600}.crumbs .sep{margin:0 8px;color:var(--faint)}
+.search{position:relative;width:min(440px,42vw);flex:none}
+.search input{width:100%;font:inherit;padding:7px 34px 7px 34px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+.search input:focus{outline:2px solid var(--accent);border-color:transparent;background:var(--panel)}
+.search .ic{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--faint);pointer-events:none}
+.search kbd{position:absolute;right:9px;top:50%;transform:translateY(-50%);font:11px ui-monospace,monospace;color:var(--faint);border:1px solid var(--line);border-radius:4px;padding:0 5px;pointer-events:none}
+.sres{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);max-height:72vh;overflow:auto;padding:6px;display:none;z-index:30}
+.sres.on{display:block}
+.sres h6{margin:10px 8px 4px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+.sitem{display:flex;gap:10px;align-items:center;padding:8px;border-radius:8px;cursor:pointer}
+.sitem.on,.sitem:hover{background:var(--accent-soft)}
+.sitem .m{flex:1;min-width:0}.sitem .s{font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sitem .ico{width:18px;text-align:center;flex:none}
+mark{background:#ffe8a3;color:inherit;border-radius:2px;padding:0 1px}
+@media (prefers-color-scheme:dark){mark{background:rgba(255,212,59,.3)}}
+.sfoot{font-size:11.5px;color:var(--faint);padding:8px 8px 4px;border-top:1px solid var(--line);margin-top:6px}
+.snone{padding:14px 8px;color:var(--mute)}
+.livepill{display:flex;align-items:center;gap:8px;border-radius:99px;background:var(--run-soft);color:var(--run);border:0;font-weight:600}
+.side{border-right:1px solid var(--line);padding:14px 12px;overflow:auto;background:var(--panel)}
+.nav{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--ink);cursor:pointer}
+.nav:hover{background:var(--accent-soft);text-decoration:none}.nav.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav .n{margin-left:auto;color:var(--faint);font-size:12px;font-weight:400}
+.side h6{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);margin:20px 10px 6px}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+main{overflow:auto;min-width:0}
+.page{max-width:1180px;margin:0 auto;padding:28px 32px 60px}
+.page-title{font-size:24px;margin:0 0 4px}.lead{color:var(--mute);margin:0 0 22px;max-width:720px}
+.kind{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);font-weight:600;margin-bottom:4px}
+h2.sec{font-size:15px;margin:30px 0 12px;display:flex;align-items:center;gap:8px}
+.stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 16px;min-width:130px}
+.stat b{display:block;font-size:22px}.stat span{color:var(--mute);font-size:12px}
+.grid{display:grid;align-items:start;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.plan-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:border-color .15s,box-shadow .15s}
+.plan-card:hover{border-color:var(--accent);box-shadow:0 2px 12px rgba(0,0,0,.06)}
+.plan-card h3{margin:0;font-size:16px;line-height:1.35}
+.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}.bar b{display:block;height:100%;background:var(--ok);border-radius:3px}
+.meta{color:var(--mute);font-size:12.5px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.chip{display:inline-flex;align-items:center;font-size:12px;padding:1px 9px;border-radius:99px;background:var(--accent-soft);color:var(--accent);border:0;margin:0 4px 4px 0;cursor:pointer}
+.chip:hover{outline:1px solid currentColor}
+.chip.g-tech{background:var(--tech);color:var(--techi)}.chip.g-type{background:var(--type);color:var(--typei)}
+.status{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:1px 9px;border-radius:99px;white-space:nowrap}
+.st-todo{background:var(--type);color:var(--mute)}.st-in_progress{background:var(--run-soft);color:var(--run)}.st-review{background:var(--warn-soft);color:var(--warn)}.st-done{background:var(--ok-soft);color:var(--ok)}
+.live{width:8px;height:8px;border-radius:50%;background:var(--run);display:inline-block;flex:none;animation:p 1.2s infinite}
+@keyframes p{50%{opacity:.25}}
+.livecard{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--run);border-radius:10px;padding:12px 14px;cursor:pointer}
+.livecard:hover{border-color:var(--accent)}
+.liveline{color:var(--run);font-size:13px;display:flex;gap:6px;align-items:center;margin-top:4px}
+.plan-card.has-live{border-left:3px solid var(--run)}
+.nest{margin-top:4px;border-top:1px dashed var(--line);padding-top:10px}
+.nest-h{display:flex;gap:6px;align-items:center;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--run);font-weight:700;margin-bottom:2px}
+.ntask{padding:6px 8px;margin:0 -8px;border-radius:8px;cursor:pointer}
+.ntask:hover{background:var(--run-soft)}
+.ntask b{font-weight:600;font-size:13.5px}
+.nag{position:relative;padding-left:24px;font-size:13px;color:var(--run);margin-top:3px}
+.nag:before{content:"";position:absolute;left:7px;top:-5px;height:14px;width:11px;border-left:1px solid var(--faint);border-bottom:1px solid var(--faint);border-bottom-left-radius:4px}
+.nag .who{color:var(--ink);font-weight:600}
+.empty{color:var(--mute);background:var(--panel);border:1px dashed var(--line);border-radius:10px;padding:16px}
+/* plan page */
+.subtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:22px 0 0}
+.subtabs a{padding:9px 14px;color:var(--mute);border-bottom:2px solid transparent;font-weight:500}
+.subtabs a:hover{text-decoration:none;color:var(--ink)}.subtabs a.on{color:var(--accent);border-color:var(--accent)}
+.doclayout{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:40px;margin-top:24px}
+.doc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px 32px 28px}
+.doc h3{font-size:18px;margin:28px 0 8px;scroll-margin-top:20px}.doc h3 small{font-weight:400;color:var(--faint);font-size:13px;margin-left:6px}
+.doc h4{font-size:14px;margin:16px 0 4px;scroll-margin-top:20px}
+.toc{position:sticky;top:20px;align-self:start;font-size:13px}
+.toc .kind{margin-bottom:8px}
+.toc a{display:block;color:var(--mute);padding:3px 0 3px 10px;border-left:2px solid var(--line)}
+.toc a:hover{color:var(--accent);border-color:var(--accent);text-decoration:none}
+.toc a.l2{padding-left:24px;font-size:12.5px}
+.trow{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;margin:8px 0;cursor:pointer}
+.trow:hover{border-color:var(--accent);background:var(--accent-soft)}
+.trow .t{flex:1;min-width:0}.trow .t b{font-weight:600}.trow .sub{color:var(--mute);font-size:12.5px}
+.chev{color:var(--faint);font-size:18px}
+.rel{background:var(--accent-soft);border-radius:8px;padding:8px 12px;margin-top:12px;font-size:13px}
+/* board */
+.toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.toolbar label{color:var(--mute);font-size:13px;display:flex;gap:6px;align-items:center}
+.board{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;align-items:flex-start}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:10px;flex:1 0 230px;min-width:230px;display:flex;flex-direction:column;max-height:calc(100vh - 250px)}
+.col.drop{outline:2px dashed var(--accent);outline-offset:-2px}
+.col .hd{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;font-weight:600;border-bottom:1px solid var(--line)}
+.col .list{overflow:auto;padding:8px;min-height:70px}
+.card{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.card:hover{border-color:var(--accent)}.card.dragging{opacity:.4}
+.card .pl{font-size:12px;color:var(--mute);display:flex;gap:6px;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .ttl{font-weight:600;margin:4px 0 6px;line-height:1.35}
+.card .ft{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px}
+.diff{font-size:12px;color:var(--mute);display:flex;gap:6px;align-items:center}
+.av{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;color:#fff;flex:none}
+.pips i{display:inline-block;width:6px;height:10px;border-radius:2px;background:var(--line);margin-right:2px;vertical-align:middle}.pips i.f{background:var(--warn)}
+/* map */
+.maplayout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px}
+.topics{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;align-self:start}
+.topics h5{margin:10px 6px 4px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint)}
+.topic{display:flex;justify-content:space-between;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:13px}
+.topic:hover{background:var(--accent-soft)}.topic.on{background:var(--accent);color:#fff}.topic .n{opacity:.7;font-size:12px}
+.gwrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.gwrap svg{display:block;width:100%;height:520px}
+.gnode{cursor:pointer}.gnode text{font-size:12px;fill:var(--ink)}.dim{opacity:.12}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--mute);margin-top:10px}
+.legend svg{vertical-align:middle;margin-right:4px}
+.hint{background:var(--accent-soft);color:var(--ink);border-radius:10px;padding:10px 14px;margin-top:12px;font-size:13px}
+/* drawer */
+#scrim{position:fixed;inset:0;background:rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .2s}
+#scrim.on{opacity:1;pointer-events:auto}
+#drawer{position:fixed;top:0;right:0;height:100vh;width:min(500px,100vw);background:var(--panel);box-shadow:var(--shadow);transform:translateX(105%);transition:transform .22s ease;display:flex;flex-direction:column;z-index:10}
+#drawer.on{transform:none}
+.dh{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.dh .sp{flex:1;min-width:0;color:var(--mute);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.db{padding:20px 22px 40px;overflow:auto;flex:1}
+.db h2{margin:2px 0 10px;font-size:20px;line-height:1.3}
+.box{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:14px 0}
+.box .kind{margin-bottom:6px}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{flex:1;border:0;border-radius:0;border-right:1px solid var(--line);padding:7px 4px;background:none}
+.seg button:last-child{border-right:0}.seg button.on{font-weight:700}
+.seg button.on.st-todo{background:var(--type)}.seg button.on.st-in_progress{background:var(--run-soft);color:var(--run)}.seg button.on.st-review{background:var(--warn-soft);color:var(--warn)}.seg button.on.st-done{background:var(--ok-soft);color:var(--ok)}
+.agentrow{display:flex;gap:10px;align-items:flex-start;padding:8px 0}
+.agentrow .who{font-weight:600}.agentrow .what{color:var(--run)}
+.tl{list-style:none;margin:0;padding:0}
+.tl li{position:relative;padding:0 0 12px 22px;font-size:13px}
+.tl li:before{content:"";position:absolute;left:5px;top:7px;width:7px;height:7px;border-radius:50%;background:var(--line)}
+.tl li:after{content:"";position:absolute;left:8px;top:16px;bottom:0;width:1px;background:var(--line)}
+.tl li:last-child:after{display:none}
+.tl .time{color:var(--faint);font-size:12px;margin-right:6px}
+.raw{display:none;font-family:ui-monospace,monospace;font-size:11.5px;color:var(--faint)}
+.showraw .raw{display:block}
+.mini{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid var(--line);margin:6px 0}
+.mini:hover{border-color:var(--accent)}
+#toast{position:fixed;bottom:20px;left:50%;transform:translate(-50%,80px);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:13px;transition:transform .2s;z-index:20}
+#toast.on{transform:translate(-50%,0)}
+@media (max-width:900px){.shell{grid-template-columns:1fr;grid-template-rows:auto auto 1fr;height:auto}.top{grid-column:1;flex-wrap:wrap;padding:10px 16px}.logo{width:auto}
+ .side{display:flex;flex-wrap:wrap;gap:4px;border-right:0;border-bottom:1px solid var(--line)}.side h6,.side .proj{display:none}
+ .search{width:100%;order:3}.page{padding:20px 16px}.doclayout,.maplayout{grid-template-columns:1fr}.toc{display:none}.doc{padding:4px 16px 20px}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <div class="logo">🗺 Plan Atlas</div>
+    <div class="crumbs" id="crumbs"></div>
+    <div class="search" role="search"><span class="ic">🔍</span><input id="q" placeholder="Tìm plan, việc, chủ đề…" autocomplete="off" aria-label="Tìm kiếm"><kbd>/</kbd><div class="sres" id="sres"></div></div>
+    <button class="livepill" id="livepill" data-act="activity"></button>
+  </header>
+  <aside class="side" id="side"></aside>
+  <main id="main"></main>
+</div>
+<div id="scrim" data-act="close"></div>
+<aside id="drawer" aria-label="Chi tiết"></aside>
+<div id="toast"></div>
+<script>
+/* ================= DỮ LIỆU GIẢ LẬP ================= */
+const DATA=[
+ {project:'auth-gateway',plans:[{
+  id:'PLAN-auth-001',title:'Chuyển session sang JWT + RBAC',created:'20/11/2026',
+  tags:['type/feature','domain/security','tech/jwt','tech/rbac'],
+  overview:'Thay cơ chế session cookie hiện tại bằng JWT access/refresh token, thêm middleware phân quyền theo role.',
+  scope:['Login/refresh/logout bằng JWT','Phân quyền theo role cho 40 endpoint','Ngoài phạm vi: SSO, MFA'],
+  analysis:{'Current Architecture':'Express + express-session lưu Redis, kiểm tra quyền rải rác trong controller.',
+   'Existing Problems':'Không scale ngang tốt, logic quyền trùng lặp, không có audit.',
+   'Proposed Architecture':'Auth Service phát token (RS256), Gateway verify, Permission Middleware đọc claim roles.'},
+  tasks:[
+   {id:'TASK-001',name:'Authentication Service',c:4,status:'done',tags:['tech/jwt','domain/backend'],desc:'Endpoint /login, /refresh, /logout; ký RS256; xoay key.'},
+   {id:'TASK-002',name:'Token Management',c:3,status:'in_progress',tags:['tech/jwt','tech/redis'],desc:'Lưu refresh token, danh sách thu hồi, thời hạn token.',dep:['TASK-001']},
+   {id:'TASK-003',name:'Permission Middleware',c:4,status:'todo',tags:['tech/rbac','domain/security'],desc:'Middleware requireRole(), bảng mapping endpoint → role.',dep:['TASK-001']},
+   {id:'TASK-004',name:'Cập nhật tài liệu API',c:1,status:'todo',tags:['type/docs'],desc:'Bổ sung header Authorization vào OpenAPI.'}]
+ },{
+  id:'PLAN-auth-002',title:'Audit log cho thao tác phân quyền',created:'24/11/2026',
+  tags:['type/feature','domain/security','tech/postgres'],related:[{to:'PLAN-auth-001',type:'depends_on'}],
+  overview:'Ghi lại mọi thay đổi role/quyền và các lần truy cập bị từ chối.',scope:['Bảng audit_events','API tra cứu'],
+  analysis:{'Proposed Architecture':'Middleware phát event → ghi Postgres (append-only).'},
+  tasks:[
+   {id:'TASK-001',name:'Schema audit_events',c:2,status:'review',tags:['tech/postgres','domain/backend'],desc:'Migration + index theo người thực hiện, thời gian.'},
+   {id:'TASK-002',name:'Hook vào Permission Middleware',c:3,status:'todo',tags:['tech/rbac'],desc:'Phát event khi từ chối truy cập.'}]
+ }]},
+ {project:'viewer-3d',plans:[{
+  id:'PLAN-viewer-001',title:'Tối ưu kéo thả trong trình xem 3D',created:'18/11/2026',
+  tags:['type/refactor','domain/frontend','tech/threejs'],
+  overview:'Giảm giật khi kéo model lớn, tách logic dragger khỏi viewer.',
+  scope:['Raycast theo BVH','Throttle sự kiện pointer'],
+  analysis:{'Current Architecture':'Dragger raycast toàn bộ mesh mỗi pointermove.','Existing Problems':'FPS < 20 với model > 1M tam giác.','Proposed Architecture':'three-mesh-bvh + requestAnimationFrame throttle.'},
+  tasks:[
+   {id:'TASK-001',name:'Tích hợp three-mesh-bvh',c:3,status:'in_progress',tags:['tech/threejs'],desc:'Dựng chỉ mục BVH khi tải model.'},
+   {id:'TASK-002',name:'Throttle pointer events',c:2,status:'todo',tags:['domain/frontend'],desc:'Gom sự kiện theo requestAnimationFrame.'}]
+ },{
+  id:'PLAN-viewer-002',title:'Tải model 3D theo mức chi tiết (LOD)',created:'25/11/2026',
+  tags:['type/feature','domain/frontend','tech/threejs','tech/gltf'],related:[{to:'PLAN-viewer-001',type:'relates_to'}],
+  overview:'Tải model theo mức chi tiết, ưu tiên vùng camera đang nhìn.',scope:['Tách LOD khi convert','Streaming theo vùng nhìn'],analysis:{},
+  tasks:[{id:'TASK-001',name:'Pipeline sinh LOD',c:4,status:'todo',tags:['tech/gltf','domain/data'],desc:'gltf-transform simplify 3 mức.'},
+   {id:'TASK-002',name:'Tải theo vùng nhìn',c:5,status:'todo',tags:['tech/threejs'],desc:'Ưu tiên tải phần nằm trong tầm nhìn camera.'}]
+ }]},
+ {project:'rag-backend',plans:[{
+  id:'PLAN-rag-001',title:'Thêm nguồn "Ask AI" cho RAG',created:'25/06/2026',
+  tags:['type/feature','domain/ai','tech/rag'],overview:'Plan được nhập từ ~/.claude/plans/ (tạo trước khi có Plan Atlas).',scope:[],analysis:{},
+  tasks:[{id:'TASK-001',name:'Endpoint ask-source',c:3,status:'done',tags:['tech/rag'],desc:'Thêm nguồn trả lời từ LLM.'}]
+ },{
+  id:'PLAN-rag-002',title:'Bảo vệ API RAG bằng đăng nhập của Auth Gateway',created:'26/11/2026',
+  tags:['type/feature','domain/security','tech/jwt','tech/rag'],related:[{to:'PLAN-auth-001',type:'depends_on'},{to:'PLAN-rag-001',type:'extends'}],
+  overview:'RAG backend kiểm tra token do auth-gateway phát, lọc tài liệu theo vai trò người dùng.',scope:['Verify JWT (JWKS)','Lọc chunk theo role'],analysis:{},
+  tasks:[{id:'TASK-001',name:'JWKS verifier',c:3,status:'todo',tags:['tech/jwt','domain/backend'],desc:'Cache public key, verify RS256.'},
+   {id:'TASK-002',name:'Tra cứu theo vai trò',c:4,status:'todo',tags:['tech/rag','tech/rbac'],desc:'Lọc metadata theo role khi tìm kiếm vector.'}]
+ }]}
+];
+DATA.forEach(d=>d.plans.forEach(p=>{p.project=d.project;p.tasks.forEach(t=>t.plan=p.id)}));
+const ALL=DATA.flatMap(d=>d.plans), byId=Object.fromEntries(ALL.map(p=>[p.id,p]));
+const TASKS=ALL.flatMap(p=>p.tasks);
+const getT=(pid,tid)=>byId[pid].tasks.find(t=>t.id==tid);
+
+/* ================= TỪ ĐIỂN NGÔN NGỮ THƯỜNG ================= */
+const PCOLOR={'auth-gateway':'#4c6ef5','viewer-3d':'#12b886','rag-backend':'#f59f00'};
+const ST={todo:'Chưa làm',in_progress:'Đang làm',review:'Chờ duyệt',done:'Xong'};
+const SICON={todo:'○',in_progress:'◐',review:'◑',done:'●'};
+const DIFF={1:'Rất dễ',2:'Dễ',3:'Vừa',4:'Khó',5:'Rất khó'};
+const MODEL={1:['haiku','low'],2:['sonnet','low'],3:['sonnet','medium'],4:['opus','medium'],5:['opus','high']};
+const MINFO={haiku:['Haiku','nhanh, tiết kiệm','#0ca678'],sonnet:['Sonnet','cân bằng tốc độ và chất lượng','#4263eb'],opus:['Opus','mạnh nhất, dành cho việc khó','#ae3ec9']};
+const EFF={low:'suy nghĩ nhanh',medium:'suy nghĩ vừa phải',high:'suy nghĩ kỹ'};
+const REL={depends_on:['cần','xong trước'],extends:['mở rộng từ',''],relates_to:['liên quan tới','']};
+const GROUPS={type:'Loại công việc',domain:'Lĩnh vực',tech:'Công nghệ'};
+const TAGS={
+ 'type/feature':['Tính năng mới','Thêm khả năng mới cho sản phẩm.'],'type/docs':['Tài liệu','Viết hoặc cập nhật tài liệu.'],'type/refactor':['Cải tổ code','Sắp xếp lại code cho tốt hơn, không đổi chức năng.'],
+ 'domain/security':['Bảo mật','Đăng nhập, phân quyền, chống truy cập trái phép.'],'domain/backend':['Máy chủ (backend)','Phần chạy trên server, xử lý dữ liệu và API.'],'domain/frontend':['Giao diện (frontend)','Phần người dùng nhìn thấy và thao tác.'],'domain/data':['Dữ liệu','Xử lý, chuyển đổi, lưu trữ dữ liệu.'],'domain/ai':['AI','Tính năng dùng mô hình AI.'],
+ 'tech/jwt':['JWT – token đăng nhập','Chuẩn "vé điện tử" chứng minh người dùng đã đăng nhập.'],'tech/rbac':['Phân quyền theo vai trò','Mỗi vai trò (admin, nhân viên…) được làm những việc khác nhau.'],'tech/redis':['Redis – bộ nhớ đệm','Kho lưu dữ liệu tạm rất nhanh.'],'tech/postgres':['PostgreSQL – cơ sở dữ liệu','Nơi lưu dữ liệu chính, lâu dài.'],'tech/threejs':['Three.js – đồ hoạ 3D','Thư viện hiển thị mô hình 3D trên web.'],'tech/gltf':['glTF – định dạng 3D','Định dạng file mô hình 3D phổ biến.'],'tech/rag':['RAG – AI tra cứu tài liệu','AI tìm tài liệu liên quan rồi mới trả lời.']};
+const tl=t=>{const[g,n]=t.split('/');const m=TAGS[t]||[n,''];return{g,label:m[0],desc:m[1]}};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const allTags=p=>[...new Set([...p.tags,...p.tasks.flatMap(t=>t.tags)])];
+const done=p=>p.tasks.filter(t=>t.status=='done').length;
+const pStatus=p=>done(p)==p.tasks.length?['Hoàn thành','done']:p.tasks.some(t=>t.status!='todo')?['Đang thực hiện','in_progress']:['Chưa bắt đầu','todo'];
+
+/* ================= HOẠT ĐỘNG CỦA CLAUDE (giả lập từ hooks) ================= */
+const STEPS={
+ auth:[{tool:'Read',arg:'src/auth/token.ts',h:'đọc code xử lý token',ic:'📖'},{tool:'Grep',arg:'"refreshToken"',h:'tìm những chỗ dùng refresh token',ic:'🔍'},{tool:'Edit',arg:'src/auth/store/redis.ts',h:'sửa phần lưu token',ic:'✏️'},{tool:'Bash',arg:'npm test -- token',h:'chạy kiểm thử tự động',ic:'🧪'},{tool:'Edit',arg:'src/auth/revoke.ts',h:'viết chức năng thu hồi token',ic:'✏️'},{tool:'Bash',arg:'npm run lint',h:'kiểm tra quy chuẩn code',ic:'🧹'}],
+ viewer:[{tool:'Read',arg:'src/viewer/dragger.ts',h:'đọc code kéo thả mô hình',ic:'📖'},{tool:'Bash',arg:'npm i three-mesh-bvh',h:'cài thư viện tăng tốc chọn vật thể',ic:'📦'},{tool:'Edit',arg:'src/viewer/loader.ts',h:'thêm bước dựng chỉ mục khi tải mô hình',ic:'✏️'},{tool:'Bash',arg:'npm run bench',h:'đo tốc độ khung hình',ic:'⏱'}]};
+const ROLE={Explore:'Trợ lý tìm hiểu',implementer:'Trợ lý lập trình'};
+let AG=[{plan:'PLAN-auth-001',task:'TASK-002',role:'Explore',model:'haiku',set:'auth',i:0},{plan:'PLAN-auth-001',task:'TASK-002',role:'implementer',model:'sonnet',set:'auth',i:2},{plan:'PLAN-viewer-001',task:'TASK-001',role:'implementer',model:'sonnet',set:'viewer',i:1}];
+const LOG={};const START={};
+const key=(p,t)=>p+'|'+t;
+const isLive=a=>getT(a.plan,a.task).status=='in_progress';
+const liveAgents=()=>AG.filter(isLive);
+const agentsOf=(p,t)=>liveAgents().filter(a=>a.plan==p&&a.task==t);
+const step=a=>STEPS[a.set][a.i];
+function addLog(a,minsAgo=0){const k=key(a.plan,a.task);(LOG[k]??=[]).unshift({t:new Date(Date.now()-minsAgo*60000),who:ROLE[a.role],s:step(a)});LOG[k].length=Math.min(LOG[k].length,30)}
+AG.forEach(a=>{START[key(a.plan,a.task)]=Date.now()-7*60000;for(let m=6;m>=1;m--){a.i=(a.i+1)%STEPS[a.set].length;addLog(a,m)}});
+const liveText=(p,t)=>{const a=agentsOf(p,t)[0];return a?`${ROLE[a.role]} đang ${step(a).h}`:''};
+const fmt=d=>d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+const ago=ms=>{const m=Math.round((Date.now()-ms)/60000);return m<1?'vừa xong':m+' phút trước'};
+
+/* ================= ĐIỀU HƯỚNG ================= */
+let R={page:'home'};
+const BF={project:'all',tag:'',group:'status'};
+const M={tag:null,tagEdges:true};
+let D=[]; let showRaw=false;
+function parse(){const [pg,a,b]=location.hash.replace(/^#\/?/,'').split('/').map(decodeURIComponent);
+ R=pg=='project'?{page:'project',project:a}:pg=='plan'&&byId[a]?{page:'plan',plan:a,tab:b||'docs'}:pg=='board'?{page:'board'}:pg=='map'?{page:'map'}:{page:'home'}}
+window.addEventListener('hashchange',()=>{parse();D=[];renderAll();document.querySelector('main').scrollTop=0});
+
+/* ================= KHUNG ================= */
+function renderAll(){renderSide();renderCrumbs();renderMain();renderDrawer();renderPill()}
+function renderSide(){
+ const on=(c)=>c?'on':'';
+ document.getElementById('side').innerHTML=`
+  <a class="nav ${on(R.page=='home')}" href="#/home">🏠 Tổng quan</a>
+  <a class="nav ${on(R.page=='board')}" href="#/board">🗂 Bảng công việc<span class="n">${TASKS.length}</span></a>
+  <a class="nav ${on(R.page=='map')}" href="#/map">🧭 Bản đồ kiến thức</a>
+  <h6>Dự án</h6>
+  ${DATA.map(d=>`<a class="nav proj ${on((R.page=='project'&&R.project==d.project)||(R.page=='plan'&&byId[R.plan].project==d.project))}" href="#/project/${d.project}"><span class="dot" style="background:${PCOLOR[d.project]}"></span>${d.project}<span class="n">${d.plans.length} plan</span></a>`).join('')}`;
+}
+function renderCrumbs(){
+ const c=['<a href="#/home">Tổng quan</a>'];
+ if(R.page=='board')c.push('<b>Bảng công việc</b>');
+ if(R.page=='map')c.push('<b>Bản đồ kiến thức</b>');
+ if(R.page=='project')c.push(`<b>Dự án ${esc(R.project)}</b>`);
+ if(R.page=='plan'){const p=byId[R.plan];c.push(`<a href="#/project/${p.project}">Dự án ${p.project}</a>`,`<b>📄 ${esc(p.title)}</b>`)}
+ document.getElementById('crumbs').innerHTML=R.page=='home'?'<b>Tổng quan</b>':c.join('<span class="sep">›</span>');
+}
+function renderPill(){const ts=new Set(liveAgents().map(a=>key(a.plan,a.task)));const el=document.getElementById('livepill');
+ el.style.display=ts.size?'':'none';el.innerHTML=`<span class="live"></span>Claude đang làm ${ts.size} việc`;el.title='Xem Claude đang làm gì'}
+function renderMain(){const m=document.getElementById('main');
+ m.innerHTML=`<div class="page">${R.page=='home'?homeHtml():R.page=='project'?projectHtml():R.page=='plan'?planHtml():R.page=='board'?boardPageHtml():mapHtml()}</div>`;
+ attachDnD();
+}
+
+/* ================= KHỐI DÙNG CHUNG ================= */
+const chip=t=>{const x=tl(t);return `<button class="chip g-${x.g}" data-act="topic" data-tag="${t}" title="Bấm để xem chủ đề “${esc(x.label)}”">${esc(x.label)}</button>`};
+const status=s=>`<span class="status st-${s}">${SICON[s]} ${ST[s]}</span>`;
+const pips=c=>`<span class="pips">${[1,2,3,4,5].map(i=>`<i class="${i<=c?'f':''}"></i>`).join('')}</span>`;
+const av=c=>{const m=MINFO[MODEL[c][0]];return `<span class="av" style="background:${m[2]}" title="Claude dùng ${m[0]} (${m[1]})">${m[0][0]}</span>`};
+const liveTasksOf=p=>p.tasks.filter(t=>agentsOf(p.id,t.id).length);
+const agLine=a=>`<div class="nag"><span class="who">${ROLE[a.role]}</span> <span data-ag="${AG.indexOf(a)}">${step(a).ic} đang ${esc(step(a).h)}</span></div>`;
+function liveNest(p,head=true){const rt=liveTasksOf(p);if(!rt.length)return '';
+ return `<div class="nest">${head?`<div class="nest-h"><span class="live"></span>Claude đang làm ${rt.length} việc của plan này</div>`:''}
+  ${rt.map(t=>`<div class="ntask" data-act="task" data-plan="${p.id}" data-task="${t.id}" title="Bấm để xem chi tiết việc"><b>◐ ${t.id} · ${esc(t.name)}</b>${agentsOf(p.id,t.id).map(agLine).join('')}</div>`).join('')}</div>`}
+function planCard(p){const [sl,sk]=pStatus(p),n=done(p),live=liveTasksOf(p).length;
+ return `<article class="plan-card ${live?'has-live':''}" data-act="plan" data-plan="${p.id}">
+  <div class="kind">📄 Plan · ${p.project}</div>
+  <h3>${esc(p.title)}</h3>
+  <div class="bar"><b style="width:${n/p.tasks.length*100}%"></b></div>
+  <div class="meta"><span class="status st-${sk}">${sl}</span><span>${n}/${p.tasks.length} việc xong</span></div>
+  <div>${p.tags.filter(t=>!t.startsWith('type/')).map(chip).join('')}</div>${liveNest(p)}</article>`}
+const runningTasks=()=>TASKS.filter(t=>agentsOf(t.plan,t.id).length);
+
+/* ================= TRANG ================= */
+function homeHtml(){const d=TASKS.filter(t=>t.status=='done').length;
+ return `<h1 class="page-title">Tổng quan</h1><p class="lead">Mọi plan Claude tạo ra ở các dự án được gom về đây. Bấm vào một plan để đọc và theo dõi tiến độ.</p>
+ <div class="stats"><div class="stat"><b>${ALL.length}</b><span>plan</span></div><div class="stat"><b>${TASKS.length}</b><span>việc cần làm</span></div><div class="stat"><b>${d}</b><span>việc đã xong</span></div><div class="stat"><b style="color:var(--run)">${runningTasks().length}</b><span>việc Claude đang làm</span></div></div>
+ ${DATA.map(d=>`<h2 class="sec"><span class="dot" style="background:${PCOLOR[d.project]}"></span>Dự án ${d.project} <a href="#/project/${d.project}" style="font-weight:400;font-size:13px;margin-left:auto">Xem dự án ›</a></h2><div class="grid">${liveFirst(d.plans).map(planCard).join('')}</div>`).join('')}`}
+const liveFirst=ps=>[...ps].sort((a,b)=>liveTasksOf(b).length-liveTasksOf(a).length);
+function projectHtml(){const d=DATA.find(x=>x.project==R.project);if(!d)return homeHtml();const ts=d.plans.flatMap(p=>p.tasks);
+ return `<div class="kind"><span class="dot" style="background:${PCOLOR[d.project]}"></span> Dự án</div><h1 class="page-title">${d.project}</h1>
+ <p class="lead">${d.plans.length} plan · ${ts.filter(t=>t.status=='done').length}/${ts.length} việc đã xong.</p>
+ <div class="grid">${liveFirst(d.plans).map(planCard).join('')}</div>`}
+function planHtml(){const p=byId[R.plan],[sl,sk]=pStatus(p),n=done(p),A=Object.keys(p.analysis);
+ const rels=[...(p.related||[]).map(r=>`Plan này ${REL[r.type][0]} <a data-act="plan" data-plan="${r.to}">${esc(byId[r.to].title)}</a> ${REL[r.type][1]}`),
+  ...ALL.flatMap(o=>(o.related||[]).filter(r=>r.to==p.id).map(r=>`<a data-act="plan" data-plan="${o.id}">${esc(o.title)}</a> ${REL[r.type][0]} plan này ${REL[r.type][1]}`))];
+ const head=`<div class="kind">📄 Plan · ${p.id}</div><h1 class="page-title">${esc(p.title)}</h1>
+  <div class="meta" style="margin:8px 0"><span class="status st-${sk}">${sl}</span><span>${n}/${p.tasks.length} việc xong</span><span>Tạo ${p.created}</span></div>
+  <div class="bar" style="max-width:420px;margin-bottom:10px"><b style="width:${n/p.tasks.length*100}%"></b></div>
+  <div>${p.tags.map(chip).join('')}</div>
+  ${rels.length?`<div class="rel">🔗 ${rels.join('<br>🔗 ')}</div>`:''}
+  <nav class="subtabs"><a class="${R.tab=='docs'?'on':''}" href="#/plan/${p.id}/docs">📄 Tài liệu</a><a class="${R.tab=='tasks'?'on':''}" href="#/plan/${p.id}/tasks">✅ Các việc (${p.tasks.length})</a></nav>`;
+ if(R.tab=='tasks')return head+`<p class="lead" style="margin-top:16px">Các việc của plan này theo trạng thái. Kéo thẻ sang cột khác để đổi trạng thái, bấm thẻ để xem chi tiết.</p>`+boardHtml(p.tasks,'status');
+ const sec=(id,n,vi)=>`<h3 id="${id}">${n}<small>${vi}</small></h3>`;
+ const toc=[['s1','01. Overview'],['s2','02. Requirements & Scope'],['s3','03. Technical Analysis'],...A.map((k,i)=>['s3-'+i,k,1]),['s4','04. Task Breakdown'],...p.tasks.map(t=>['t-'+t.id,t.id+': '+t.name,1]),['s5','05. Risks & Rollback']];
+ return head+`<div class="doclayout"><article class="doc">
+  ${sec('s1','01. Overview','Tổng quan')}<p>${esc(p.overview)}</p>
+  ${sec('s2','02. Requirements & Scope','Yêu cầu & phạm vi')}${p.scope.length?`<ul>${p.scope.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:'<p style="color:var(--faint)">Chưa có.</p>'}
+  ${sec('s3','03. Technical Analysis','Phân tích kỹ thuật')}${A.map((k,i)=>`<h4 id="s3-${i}">${k}</h4><p>${esc(p.analysis[k])}</p>`).join('')||'<p style="color:var(--faint)">Chưa có.</p>'}
+  ${sec('s4','04. Task Breakdown','Chia nhỏ công việc')}<p style="color:var(--mute);font-size:13px;margin-top:0">Bấm vào một việc để xem chi tiết và Claude đang làm gì.</p>
+  ${p.tasks.map(t=>{const lt=liveText(p.id,t.id);return `<div class="trow" id="t-${t.id}" data-act="task" data-plan="${p.id}" data-task="${t.id}">
+   <div class="t"><b>${t.id} · ${esc(t.name)}</b><div class="sub">${pips(t.c)} Độ khó: ${DIFF[t.c]} · Claude dùng ${MINFO[MODEL[t.c][0]][0]}${lt?` · <span style="color:var(--run)" data-live="${key(p.id,t.id)}">${esc(lt)}</span>`:''}</div></div>
+   ${status(t.status)}<span class="chev">›</span></div>`}).join('')}
+  ${sec('s5','05. Risks & Rollback','Rủi ro & phương án lùi')}<p>Giữ song song cơ chế cũ 1 sprint; bật/tắt bằng feature flag.</p>
+ </article><aside class="toc"><div class="kind">Trên trang này</div>${toc.map(([id,n,l2])=>`<a class="${l2?'l2':''}" data-act="scroll" data-id="${id}">${esc(n)}</a>`).join('')}</aside></div>`}
+
+/* ---------- Bảng công việc ---------- */
+const COLS=()=>({status:Object.keys(ST).map(k=>[k,`${SICON[k]} ${ST[k]}`]),
+ model:Object.keys(MINFO).map(k=>[k,`Claude dùng ${MINFO[k][0]}`]),
+ domain:[...new Set(TASKS.flatMap(t=>[...t.tags,...byId[t.plan].tags]).filter(t=>t.startsWith('domain/')))].map(t=>[t,tl(t).label]).concat([['_none','Chưa phân lĩnh vực']])});
+function colKey(t,g){return g=='status'?t.status:g=='model'?MODEL[t.c][0]:([...t.tags,...byId[t.plan].tags].find(x=>x.startsWith('domain/'))||'_none')}
+function boardHtml(items,g){const dnd=g=='status';
+ return `<div class="board">${COLS()[g].map(([k,n])=>{const cs=items.filter(t=>colKey(t,g)==k);return `<div class="col" data-col="${k}" data-dnd="${dnd}">
+  <div class="hd"><span>${esc(n)}</span><span style="color:var(--faint);font-weight:400">${cs.length}</span></div>
+  <div class="list">${cs.map(cardHtml).join('')||'<div style="color:var(--faint);font-size:12px;padding:8px">Không có việc nào</div>'}</div></div>`}).join('')}</div>`}
+function cardHtml(t){const p=byId[t.plan],lt=liveText(p.id,t.id);
+ return `<div class="card" draggable="true" data-act="task" data-plan="${p.id}" data-task="${t.id}">
+  <div class="pl"><span class="dot" style="background:${PCOLOR[p.project]}"></span>📄 ${esc(p.title)}</div>
+  <div class="ttl">${esc(t.name)}</div>
+  ${lt?`<div class="liveline" style="margin:0 0 6px"><span class="live"></span><span data-live="${key(p.id,t.id)}">${esc(lt)}</span></div>`:''}
+  <div class="ft"><span class="diff">${pips(t.c)} ${DIFF[t.c]}</span>${av(t.c)}</div></div>`}
+function boardPageHtml(){
+ const items=TASKS.filter(t=>(BF.project=='all'||byId[t.plan].project==BF.project)&&(!BF.tag||t.tags.includes(BF.tag)||byId[t.plan].tags.includes(BF.tag)));
+ const tags=[...new Set(TASKS.flatMap(t=>[...t.tags,...byId[t.plan].tags]))].sort();
+ const filtered=BF.project!='all'||BF.tag;
+ return `<h1 class="page-title">Bảng công việc</h1><p class="lead">Tất cả việc của mọi plan. Kéo thẻ sang cột khác để đổi trạng thái, bấm thẻ để xem chi tiết (bảng vẫn giữ nguyên).</p>
+ <div class="toolbar">
+  <label>Dự án <select data-chg="project"><option value="all">Tất cả</option>${DATA.map(d=>`<option ${BF.project==d.project?'selected':''}>${d.project}</option>`).join('')}</select></label>
+  <label>Chủ đề <select data-chg="tag"><option value="">Tất cả</option>${Object.keys(GROUPS).map(g=>`<optgroup label="${GROUPS[g]}">${tags.filter(t=>t.startsWith(g+'/')).map(t=>`<option value="${t}" ${BF.tag==t?'selected':''}>${esc(tl(t).label)}</option>`).join('')}</optgroup>`).join('')}</select></label>
+  <label>Chia cột theo <select data-chg="group"><option value="status" ${BF.group=='status'?'selected':''}>Trạng thái</option><option value="model" ${BF.group=='model'?'selected':''}>Model Claude dùng</option><option value="domain" ${BF.group=='domain'?'selected':''}>Lĩnh vực</option></select></label>
+  <span style="margin-left:auto;color:var(--mute);font-size:13px">Đang hiện <b>${items.length}</b>/${TASKS.length} việc ${filtered?'<button data-act="clearbf" style="margin-left:6px">Xoá lọc</button>':''}</span>
+ </div>${BF.group!='status'?'<p style="color:var(--mute);font-size:12.5px;margin:-6px 0 10px">Chỉ kéo thả được khi chia cột theo trạng thái.</p>':''}${boardHtml(items,BF.group)}`}
+function attachDnD(){
+ document.querySelectorAll('.col[data-dnd="true"]').forEach(col=>{
+  col.ondragover=e=>{e.preventDefault();col.classList.add('drop')};col.ondragleave=()=>col.classList.remove('drop');
+  col.ondrop=e=>{e.preventDefault();col.classList.remove('drop');const[p,t]=e.dataTransfer.getData('text/plain').split('|');if(p)setStatus(p,t,col.dataset.col)}});
+ document.querySelectorAll('.col[data-dnd="true"] .card').forEach(c=>{c.ondragstart=e=>{e.dataTransfer.setData('text/plain',key(c.dataset.plan,c.dataset.task));c.classList.add('dragging')};c.ondragend=()=>c.classList.remove('dragging')});
+ document.querySelectorAll('.col[data-dnd="false"] .card').forEach(c=>c.draggable=false);
+}
+
+/* ---------- Bản đồ kiến thức ---------- */
+function buildGraph(){
+ const nodes=ALL.map((p,i)=>({p,x:Math.cos(i*2.4)*200,y:Math.sin(i*2.4)*160,vx:0,vy:0}));
+ const ix=Object.fromEntries(ALL.map((p,i)=>[p.id,i]));const edges=[],has=new Set();
+ ALL.forEach(p=>(p.related||[]).forEach(r=>{edges.push({s:ix[p.id],t:ix[r.to],type:r.type,ex:true});has.add([ix[p.id],ix[r.to]].sort().join())}));
+ if(M.tagEdges)for(let i=0;i<ALL.length;i++)for(let j=i+1;j<ALL.length;j++){const a=allTags(ALL[i]).filter(t=>!t.startsWith('type/')),sh=allTags(ALL[j]).filter(t=>a.includes(t));if(sh.length&&!has.has([i,j].join()))edges.push({s:i,t:j,sh,ex:false,w:sh.length})}
+ for(let it=0;it<500;it++){
+  for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const a=nodes[i],b=nodes[j];let dx=a.x-b.x,dy=a.y-b.y,d2=dx*dx+dy*dy||1,f=40000/d2,d=Math.sqrt(d2);a.vx+=dx/d*f;a.vy+=dy/d*f;b.vx-=dx/d*f;b.vy-=dy/d*f}
+  edges.forEach(e=>{const a=nodes[e.s],b=nodes[e.t],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,L=e.ex?240:340,k=e.ex?.02:.003*e.w,f=(d-L)*k;a.vx+=dx/d*f;a.vy+=dy/d*f;b.vx-=dx/d*f;b.vy-=dy/d*f});
+  nodes.forEach(n=>{n.vx-=n.x*.006;n.vy-=n.y*.0096;n.x+=n.vx*.5;n.y+=n.vy*.5;n.vx*=.6;n.vy*=.6})}
+ return{nodes,edges}}
+function mapHtml(){
+ const {nodes,edges}=buildGraph(),xs=nodes.map(n=>n.x),ys=nodes.map(n=>n.y),pad=110;
+ const vb=[Math.min(...xs)-pad,Math.min(...ys)-pad,Math.max(...xs)-Math.min(...xs)+pad*2,Math.max(...ys)-Math.min(...ys)+pad*2];
+ const vis=p=>!M.tag||allTags(p).includes(M.tag),r=p=>12+p.tasks.length*3;
+ const cnt={};ALL.forEach(p=>allTags(p).forEach(t=>cnt[t]=(cnt[t]||0)+1));
+ const E=edges.map(e=>{const a=nodes[e.s],b=nodes[e.t],dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,rb=r(b.p)+5,dim=!(vis(a.p)&&vis(b.p))?'dim':'';
+  return e.ex?`<g class="${dim}"><line x1="${a.x}" y1="${a.y}" x2="${b.x-dx/d*rb}" y2="${b.y-dy/d*rb}" stroke="var(--accent)" stroke-width="2" ${e.type=='relates_to'?'stroke-dasharray="2 4"':''} marker-end="url(#arr)"/></g>`
+  :`<line class="${dim}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--faint)" stroke-opacity=".5" stroke-width="${e.w}" stroke-dasharray="5 5"><title>Cùng chủ đề: ${e.sh.map(t=>tl(t).label).join(', ')}</title></line>`}).join('');
+ const N=nodes.map(n=>{const p=n.p,R_=r(p),C=2*Math.PI*(R_+4),f=done(p)/p.tasks.length,t=p.title.length>32?p.title.slice(0,31)+'…':p.title;
+  return `<g class="gnode ${vis(p)?'':'dim'}" transform="translate(${n.x},${n.y})" data-act="planpeek" data-plan="${p.id}">
+   <circle r="${R_+4}" fill="none" stroke="var(--line)" stroke-width="3"/><circle r="${R_+4}" fill="none" stroke="var(--ok)" stroke-width="3" stroke-dasharray="${C*f} ${C}" transform="rotate(-90)"/>
+   <circle r="${R_}" fill="${PCOLOR[p.project]}"/><text y="4" text-anchor="middle" style="fill:#fff;font-weight:700">${p.tasks.length}</text>
+   <text y="${R_+22}" text-anchor="middle" paint-order="stroke" stroke="var(--panel)" stroke-width="4">${esc(t)}</text><title>${esc(p.title)} — bấm để xem</title></g>`}).join('');
+ const sel=M.tag?ALL.filter(p=>allTags(p).includes(M.tag)):[];
+ return `<h1 class="page-title">Bản đồ kiến thức</h1><p class="lead">Mỗi vòng tròn là một plan. Mũi tên nối hai plan khi plan này cần plan kia, đường đứt nối các plan cùng chủ đề. Chọn một chủ đề bên trái để xem những plan nào liên quan.</p>
+ <div class="maplayout"><div class="topics"><div class="topic ${!M.tag?'on':''}" data-act="maptag" data-tag="">Tất cả plan<span class="n">${ALL.length}</span></div>
+  ${Object.keys(GROUPS).map(g=>`<h5>${GROUPS[g]}</h5>${Object.keys(cnt).filter(t=>t.startsWith(g+'/')).sort((a,b)=>cnt[b]-cnt[a]).map(t=>`<div class="topic ${M.tag==t?'on':''}" data-act="maptag" data-tag="${t}" title="${esc(tl(t).desc)}">${esc(tl(t).label)}<span class="n">${cnt[t]} plan</span></div>`).join('')}`).join('')}</div>
+ <div><div class="gwrap"><svg viewBox="${vb.join(' ')}" preserveAspectRatio="xMidYMid meet"><defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="var(--accent)"/></marker></defs>${E}${N}</svg></div>
+  <div class="legend">${Object.entries(PCOLOR).map(([k,c])=>`<span><svg width="12" height="12"><circle cx="6" cy="6" r="6" fill="${c}"/></svg>${k}</span>`).join('')}
+   <span><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="var(--accent)" stroke-width="2"/></svg>cần / mở rộng từ</span>
+   <span><svg width="28" height="8"><line x1="0" y1="4" x2="28" y2="4" stroke="var(--faint)" stroke-width="2" stroke-dasharray="5 5"/></svg>cùng chủ đề</span>
+   <span>Vòng xanh: phần việc đã xong · Số: số việc</span>
+   <label style="margin-left:auto"><input type="checkbox" data-chg="tagEdges" ${M.tagEdges?'checked':''}> Hiện đường “cùng chủ đề”</label></div>
+  ${M.tag?`<div class="hint"><b>${esc(tl(M.tag).label)}</b>: ${esc(tl(M.tag).desc)} Có ${sel.length} plan thuộc chủ đề này: ${sel.map(p=>`<a data-act="planpeek" data-plan="${p.id}">${esc(p.title)}</a>`).join(', ')}.</div>`:'<div class="hint">💡 Bấm vào một vòng tròn để xem tóm tắt plan, không rời khỏi bản đồ.</div>'}
+ </div></div>`}
+
+/* ================= PANEL CHI TIẾT (drawer) ================= */
+function openD(x,keep){D=keep?[...D,x]:[x];renderDrawer()}
+function renderDrawer(keepScroll){
+ const dr=document.getElementById('drawer'),on=D.length>0;dr.classList.toggle('on',on);document.getElementById('scrim').classList.toggle('on',on);
+ if(!on)return;const x=D[D.length-1],db=dr.querySelector('.db'),st=keepScroll&&db?db.scrollTop:0;
+ const title=x.type=='task'?`📄 ${esc(byId[x.plan].title)}`:x.type=='topic'?'Chủ đề':x.type=='plan'?'Tóm tắt plan':'Claude đang làm gì';
+ dr.innerHTML=`<div class="dh">${D.length>1?'<button data-act="back" title="Quay lại">‹ Quay lại</button>':''}<span class="sp">${title}</span><button data-act="close" title="Đóng (Esc)">✕</button></div>
+  <div class="db ${showRaw?'showraw':''}">${x.type=='task'?taskD(x):x.type=='topic'?topicD(x):x.type=='plan'?planD(x):activityD()}</div>`;
+ dr.querySelector('.db').scrollTop=st}
+function timeline(p,t){const L=LOG[key(p,t)]||[];
+ return L.length?`<ul class="tl">${L.slice(0,10).map(e=>`<li><span class="time">${fmt(e.t)}</span>${e.s.ic} ${esc(e.who)} đã ${esc(e.s.h)}<div class="raw">${e.s.tool} ${esc(e.s.arg)}</div></li>`).join('')}</ul>
+  <label style="font-size:12.5px;color:var(--mute)"><input type="checkbox" data-chg="raw" ${showRaw?'checked':''}> Hiện chi tiết kỹ thuật (dành cho lập trình viên)</label>`:''}
+function taskD({plan,task}){const p=byId[plan],t=getT(plan,task),[m,e]=MODEL[t.c],mi=MINFO[m],ags=agentsOf(plan,task);
+ return `<div class="kind">✅ Việc · ${t.id}</div><h2>${esc(t.name)}</h2>
+ <div class="meta" style="margin-bottom:12px">Thuộc plan <a data-act="plan" data-plan="${p.id}">${esc(p.title)}</a></div>
+ <div class="kind">Trạng thái</div>
+ <div class="seg">${Object.keys(ST).map(s=>`<button class="st-${s} ${t.status==s?'on':''}" data-act="status" data-plan="${plan}" data-task="${task}" data-s="${s}">${SICON[s]} ${ST[s]}</button>`).join('')}</div>
+ <div class="box"><div class="kind">🤖 Claude đang làm gì</div>
+  ${ags.length?`<div style="color:var(--mute);font-size:13px">${ags.length} trợ lý đang làm · bắt đầu ${ago(START[key(plan,task)])}</div>
+   ${ags.map(a=>`<div class="agentrow"><span class="live" style="margin-top:7px"></span><div><span class="who">${ROLE[a.role]}</span> <span style="color:var(--faint);font-size:12px">(${MINFO[a.model][0]})</span><div class="what">${step(a).ic} đang ${esc(step(a).h)}</div></div></div>`).join('')}
+   <div class="kind" style="margin-top:10px">Nhật ký</div>${timeline(plan,task)}`
+  :t.status=='done'?`<div>✅ Việc đã hoàn thành.</div>${timeline(plan,task)}`
+  :`<div style="color:var(--mute)">Claude chưa làm việc này. Khi bắt đầu, bạn sẽ thấy từng bước Claude làm ngay tại đây.</div>`}</div>
+ <div class="box"><div class="kind">Độ khó</div>
+  <div style="display:flex;gap:10px;align-items:center">${pips(t.c)} <b>${DIFF[t.c]}</b> <span style="color:var(--faint)">(${t.c}/5)</span></div>
+  <div style="margin-top:6px;font-size:13px">Vì vậy Claude dùng <b style="color:${mi[2]}">${mi[0]}</b>, ${mi[1]}, ở chế độ ${EFF[e]}.</div></div>
+ <div class="box"><div class="kind">Mô tả</div>${esc(t.desc)}
+  ${t.dep?`<div style="margin-top:8px;font-size:13px;color:var(--mute)">Cần xong trước: ${t.dep.map(d=>`<a data-act="task" data-plan="${plan}" data-task="${d}">${esc(getT(plan,d).name)}</a>`).join(', ')}</div>`:''}</div>
+ <div class="kind">Chủ đề <span style="text-transform:none;letter-spacing:0;font-weight:400">— bấm để xem các plan khác cùng chủ đề</span></div><div style="margin-top:6px">${t.tags.map(chip).join('')}</div>`}
+function topicD({tag}){const x=tl(tag),ps=ALL.filter(p=>allTags(p).includes(tag)),ts=TASKS.filter(t=>t.tags.includes(tag)),pr=new Set(ps.map(p=>p.project));
+ return `<div class="kind">🏷 Chủ đề · ${GROUPS[x.g]}</div><h2>${esc(x.label)}</h2><p style="color:var(--mute);margin-top:0">${esc(x.desc)}</p>
+ <div class="stats"><div class="stat"><b>${ps.length}</b><span>plan</span></div><div class="stat"><b>${ts.length}</b><span>việc</span></div><div class="stat"><b>${pr.size}</b><span>dự án</span></div></div>
+ <h2 class="sec">Các plan liên quan</h2>${ps.map(p=>`<div class="mini" data-act="plan" data-plan="${p.id}"><span class="dot" style="background:${PCOLOR[p.project]}"></span><div style="flex:1"><b>${esc(p.title)}</b><div class="meta">${p.project} · ${done(p)}/${p.tasks.length} việc xong</div></div><span class="chev">›</span></div>`).join('')}
+ ${ts.length?`<h2 class="sec">Các việc liên quan</h2>${ts.map(t=>`<div class="mini" data-act="task" data-plan="${t.plan}" data-task="${t.id}"><div style="flex:1"><b>${esc(t.name)}</b><div class="meta">${esc(byId[t.plan].title)}</div></div>${status(t.status)}</div>`).join('')}`:''}
+ <div style="display:flex;gap:8px;margin-top:18px;flex-wrap:wrap"><button data-act="topicboard" data-tag="${tag}">🗂 Lọc bảng công việc theo chủ đề này</button><button data-act="topicmap" data-tag="${tag}">🧭 Xem trên bản đồ</button></div>`}
+function planD({plan}){const p=byId[plan],[sl,sk]=pStatus(p),n=done(p);
+ return `<div class="kind">📄 Plan · ${p.project}</div><h2>${esc(p.title)}</h2>
+ <div class="meta"><span class="status st-${sk}">${sl}</span>${n}/${p.tasks.length} việc xong</div><div class="bar" style="margin:10px 0"><b style="width:${n/p.tasks.length*100}%"></b></div>
+ <p>${esc(p.overview)}</p><div>${p.tags.map(chip).join('')}</div>
+ ${(p.related||[]).map(r=>`<div class="rel">🔗 Plan này ${REL[r.type][0]} <a data-act="planpeek" data-plan="${r.to}">${esc(byId[r.to].title)}</a> ${REL[r.type][1]}</div>`).join('')}
+ <h2 class="sec">Các việc</h2>${p.tasks.map(t=>`<div class="mini" data-act="task" data-plan="${p.id}" data-task="${t.id}"><div style="flex:1"><b>${esc(t.name)}</b><div class="meta">Độ khó: ${DIFF[t.c]}</div></div>${status(t.status)}</div>`).join('')}
+ <button data-act="plan" data-plan="${p.id}" style="margin-top:16px;background:var(--accent);color:#fff;border:0;padding:8px 14px">Mở plan đầy đủ ›</button>`}
+function activityD(){const rs=runningTasks();
+ return `<h2>Claude đang làm gì</h2><p style="color:var(--mute);margin-top:0">Cập nhật trực tiếp. Mỗi “trợ lý” là một tác tử Claude chạy song song để làm nhanh hơn.</p>
+ ${rs.length?ALL.filter(p=>liveTasksOf(p).length).map(p=>`<div class="box"><div class="kind"><span class="dot" style="background:${PCOLOR[p.project]}"></span> Dự án ${p.project}</div>
+  <a data-act="plan" data-plan="${p.id}" style="font-weight:700;color:var(--ink)">📄 ${esc(p.title)} ›</a>${liveNest(p,false)}</div>`).join(''):'<div class="empty">Không có việc nào đang chạy.</div>'}`}
+
+/* ================= HÀNH ĐỘNG ================= */
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('on'),2200)}
+function setStatus(p,t,s){const T=getT(p,t);if(T.status==s)return;T.status=s;
+ if(s=='in_progress'&&!AG.some(a=>a.plan==p&&a.task==t)){const a={plan:p,task:t,role:'Explore',model:'haiku',set:byId[p].project=='viewer-3d'?'viewer':'auth',i:0};AG.push(a);START[key(p,t)]=Date.now();addLog(a)}
+ toast(`Đã chuyển “${T.name}” sang ${ST[s]}`);renderMain();renderSide();renderPill();renderDrawer(true)}
+document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el)return;const a=el.dataset.act,ds=el.dataset,inD=!!el.closest('#drawer');
+ if(a=='task'){e.preventDefault();openD({type:'task',plan:ds.plan,task:ds.task},inD)}
+ else if(a=='topic'){e.stopPropagation();openD({type:'topic',tag:ds.tag},inD)}
+ else if(a=='planpeek')openD({type:'plan',plan:ds.plan},inD);
+ else if(a=='plan'){const h='#/plan/'+ds.plan+'/docs';D=[];if(location.hash==h)renderAll();else location.hash=h}
+ else if(a=='status')setStatus(ds.plan,ds.task,ds.s);
+ else if(a=='close'){D=[];renderDrawer()}
+ else if(a=='back'){D.pop();renderDrawer()}
+ else if(a=='activity')openD({type:'activity'});
+ else if(a=='scroll')document.getElementById(ds.id)?.scrollIntoView({behavior:'smooth',block:'start'});
+ else if(a=='maptag'){M.tag=ds.tag||null;renderMain()}
+ else if(a=='topicboard'){BF.tag=ds.tag;BF.project='all';D=[];location.hash=='#/board'?renderAll():location.hash='#/board'}
+ else if(a=='topicmap'){M.tag=ds.tag;D=[];location.hash=='#/map'?renderAll():location.hash='#/map'}
+ else if(a=='clearbf'){BF.project='all';BF.tag='';renderMain()}
+});
+document.addEventListener('change',e=>{const k=e.target.dataset.chg;if(!k)return;
+ if(k=='raw'){showRaw=e.target.checked;renderDrawer(true)}else if(k=='tagEdges'){M.tagEdges=e.target.checked;renderMain()}else{BF[k]=e.target.value;renderMain()}});
+document.addEventListener('keydown',e=>{if(e.key=='Escape'&&D.length){D=[];renderDrawer()}});
+
+/* nhịp cập nhật trực tiếp: chỉ thay chữ, không vẽ lại trang */
+setInterval(()=>{const ls=liveAgents();if(!ls.length)return;const a=ls[Math.random()*ls.length|0];a.i=(a.i+1)%STEPS[a.set].length;addLog(a);
+ document.querySelectorAll('[data-live]').forEach(el=>{const[p,t]=el.dataset.live.split('|');el.textContent=liveText(p,t)});
+ document.querySelectorAll('[data-ag]').forEach(el=>{const g=AG[+el.dataset.ag];el.textContent=`${step(g).ic} đang ${step(g).h}`});
+ const x=D[D.length-1];if(x&&(x.type=='activity'||(x.type=='task'&&x.plan==a.plan&&x.task==a.task)))renderDrawer(true)},2500);
+
+/* ================= TÌM KIẾM ================= */
+// bỏ dấu từng ký tự (giữ nguyên độ dài để tô sáng đúng chỗ) → gõ "bao mat" vẫn ra "Bảo mật"
+const norm=s=>String(s).split('').map(c=>(c.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[đĐ]/,'d').toLowerCase()[0])||' ').join('');
+function hl(t,ws){t=String(t);const n=norm(t),m=new Array(t.length).fill(0);
+ ws.forEach(w=>{let i=n.indexOf(w);while(i>-1){for(let k=i;k<i+w.length;k++)m[k]=1;i=n.indexOf(w,i+1)}});
+ let o='',open=0;t.split('').forEach((c,i)=>{if(m[i]&&!open){o+='<mark>';open=1}if(!m[i]&&open){o+='</mark>';open=0}o+=esc(c)});return o+(open?'</mark>':'')}
+const toDate=d=>d.split('/').reverse().join('');
+let sSel=0;
+function renderSearch(){const q=document.getElementById('q').value,box=document.getElementById('sres'),ws=norm(q).trim().split(/\s+/).filter(Boolean);
+ const has=f=>ws.every(w=>f.some(x=>norm(x).includes(w))),sc=t=>ws.filter(w=>norm(t).includes(w)).length;
+ const planItem=p=>{const[sl,sk]=pStatus(p);return `<div class="sitem" data-act="plan" data-plan="${p.id}"><span class="ico">📄</span><div class="m"><b>${hl(p.title,ws)}</b><div class="s"><span class="dot" style="background:${PCOLOR[p.project]}"></span> Dự án ${hl(p.project,ws)} · ${done(p)}/${p.tasks.length} việc xong</div></div><span class="status st-${sk}">${sl}</span></div>`};
+ let html='';
+ if(!ws.length){html=`<h6>Plan mới cập nhật</h6>${[...ALL].sort((a,b)=>toDate(b.created).localeCompare(toDate(a.created))).slice(0,5).map(planItem).join('')}`}
+ else{
+  const ps=ALL.filter(p=>has([p.title,p.id,p.project,p.overview,...allTags(p).map(t=>tl(t).label)])).sort((a,b)=>sc(b.title)-sc(a.title));
+  const ts=TASKS.filter(t=>has([t.name,t.id,t.desc,...t.tags.map(x=>tl(x).label)])).sort((a,b)=>sc(b.name)-sc(a.name));
+  const tg=[...new Set(ALL.flatMap(allTags))].filter(t=>has([tl(t).label,t]));
+  if(ps.length)html+=`<h6>Plan (${ps.length})</h6>${ps.slice(0,5).map(planItem).join('')}`;
+  if(ts.length)html+=`<h6>Việc (${ts.length})</h6>${ts.slice(0,6).map(t=>`<div class="sitem" data-act="task" data-plan="${t.plan}" data-task="${t.id}"><span class="ico">${SICON[t.status]}</span><div class="m"><b>${hl(t.name,ws)}</b><div class="s">📄 ${esc(byId[t.plan].title)} › ${t.id}</div></div>${status(t.status)}</div>`).join('')}`;
+  if(tg.length)html+=`<h6>Chủ đề (${tg.length})</h6>${tg.slice(0,4).map(t=>`<div class="sitem" data-act="topic" data-tag="${t}"><span class="ico">🏷</span><div class="m"><b>${hl(tl(t).label,ws)}</b><div class="s">${GROUPS[tl(t).g]} · ${ALL.filter(p=>allTags(p).includes(t)).length} plan</div></div></div>`).join('')}`;
+  if(!html)html=`<div class="snone">Không tìm thấy “${esc(q)}”. Thử từ khoá khác, ví dụ: <i>bảo mật</i>, <i>3D</i>, <i>token</i>.</div>`}
+ box.innerHTML=html+'<div class="sfoot">↑ ↓ để chọn · Enter để mở · Esc để đóng · gõ không dấu cũng được</div>';box.classList.add('on');sSel=0;markSel()}
+function markSel(){const it=[...document.querySelectorAll('#sres .sitem')];it.forEach((e,i)=>e.classList.toggle('on',i==sSel));it[sSel]?.scrollIntoView({block:'nearest'})}
+function hideSearch(clear){document.getElementById('sres').classList.remove('on');if(clear){const q=document.getElementById('q');q.value='';q.blur()}}
+const qEl=document.getElementById('q');
+qEl.addEventListener('input',renderSearch);qEl.addEventListener('focus',renderSearch);
+qEl.addEventListener('keydown',e=>{const n=document.querySelectorAll('#sres .sitem').length;
+ if(e.key=='ArrowDown'){e.preventDefault();sSel=Math.min(sSel+1,n-1);markSel()}
+ else if(e.key=='ArrowUp'){e.preventDefault();sSel=Math.max(sSel-1,0);markSel()}
+ else if(e.key=='Enter'){document.querySelectorAll('#sres .sitem')[sSel]?.click()}
+ else if(e.key=='Escape'){hideSearch(true)}});
+document.addEventListener('click',e=>{if(e.target.closest('#sres .sitem'))hideSearch(true);else if(!e.target.closest('.search'))hideSearch()});
+document.addEventListener('keydown',e=>{const typing=/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+ if((e.key=='/'&&!typing)||(e.key.toLowerCase()=='k'&&(e.ctrlKey||e.metaKey))){e.preventDefault();qEl.focus();qEl.select()}});
+
+parse();renderAll();
+</script>
+</body>
+</html>
