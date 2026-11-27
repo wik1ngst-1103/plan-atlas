@@ -341,7 +341,10 @@ fn bulk_upsert_1000_plans_is_fast() {
     }
     let elapsed = start.elapsed();
     println!("bulk upsert of 1000 plans: {elapsed:?}");
-    assert!(elapsed.as_secs() < 5, "too slow: {elapsed:?}");
+    // Regression guard for the O(n²) FTS delete, not a benchmark: Windows CI
+    // runners have much slower fsync, so they get a looser bound.
+    let limit = if cfg!(windows) { 20 } else { 5 };
+    assert!(elapsed.as_secs() < limit, "too slow: {elapsed:?}");
     let r = s.search("dang nhap", 5).unwrap();
     assert_eq!(r.plans.len(), 5);
     assert_eq!(s.search("title bulk-0042", 10).unwrap().plans.len(), 1);

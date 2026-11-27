@@ -8,6 +8,12 @@ use plan_atlas::import::{
 };
 use plan_atlas::plan::parse_plan;
 
+/// `p` escaped for use inside a JSON string literal (Windows backslashes).
+fn json_str(p: &Path) -> String {
+    let quoted = serde_json::to_string(&p.to_string_lossy()).unwrap();
+    quoted[1..quoted.len() - 1].to_string()
+}
+
 fn copy_dir(from: &Path, to: &Path) {
     fs::create_dir_all(to).unwrap();
     for e in fs::read_dir(from).unwrap().flatten() {
@@ -45,7 +51,7 @@ fn setup() -> Env {
     let jsonl = claude.join("projects/-tmp-demo/session.jsonl");
     let text = fs::read_to_string(&jsonl)
         .unwrap()
-        .replace("{{CWD}}", root.join("sub").to_str().unwrap());
+        .replace("{{CWD}}", &json_str(&root.join("sub")));
     fs::write(&jsonl, text).unwrap();
     let paths = Paths::from_home(tmp.path().join("atlas"));
     paths.ensure().unwrap();
@@ -221,7 +227,7 @@ fn many_transcripts(n: usize) -> (tempfile::TempDir, PathBuf) {
         let mut text = String::new();
         text.push_str(&format!(
             "{{\"cwd\":\"{}\",\"type\":\"user\"}}\n",
-            repo.display()
+            json_str(&repo)
         ));
         for _ in 0..50 {
             text.push_str("{\"type\":\"assistant\",\"message\":\"filler line\"}\n");
@@ -302,7 +308,7 @@ fn only_plan_file_writes_decide_the_project() {
         &f,
         format!(
             "{{\"type\":\"user\",\"cwd\":\"{}\"}}\n{}",
-            origin.display(),
+            json_str(&origin),
             write_line(&format!("{home_plans}/a.md"))
         ),
     )
@@ -317,7 +323,7 @@ fn only_plan_file_writes_decide_the_project() {
         &f,
         format!(
             "{{\"type\":\"assistant\",\"cwd\":\"{}\",\"message\":{{\"content\":[{{\"type\":\"tool_use\",\"name\":\"Edit\",\"input\":{{\"file_path\":\"{home_plans}/b.md\",\"old_string\":\"x\",\"new_string\":\"y\"}}}}]}}}}\n",
-            editor.display()
+            json_str(&editor)
         ),
     )
     .unwrap();
@@ -336,7 +342,7 @@ fn only_plan_file_writes_decide_the_project() {
                 "{{\"type\":\"assistant\",\"cwd\":\"{cwd}\",\"message\":{{\"content\":[{{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{{\"file_path\":\"{p}/a.md\"}}}}]}}}}\n",
                 "{{\"type\":\"assistant\",\"cwd\":\"{cwd}\",\"message\":{{\"content\":[{{\"type\":\"text\",\"text\":\"see {p}/c.md\"}}]}}}}\n"
             ),
-            cwd = noisy.display(),
+            cwd = json_str(&noisy),
             p = home_plans
         ),
     )

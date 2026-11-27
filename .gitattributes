@@ -1,3 +1,6 @@
+# Normalize line endings: templates and assets are embedded with include_str!.
+* text=auto eol=lf
+
 # Test fixtures are compared byte-for-byte (LF vs CRLF matters):
 # never let Git rewrite their line endings on checkout.
 tests/fixtures/** -text

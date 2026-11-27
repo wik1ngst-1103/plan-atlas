@@ -57,9 +57,12 @@ pub fn safe_plan_path(store: &Store, paths: &Paths, plan_id: &str) -> Result<Pat
         .map_err(OpError::internal)?
         .ok_or_else(|| plan_not_found(plan_id))?;
     let root = std::fs::canonicalize(&paths.plans).map_err(OpError::internal)?;
-    let path = std::fs::canonicalize(raw).map_err(|_| plan_not_found(plan_id))?;
-    if path.starts_with(&root) {
-        Ok(path)
+    let canonical = std::fs::canonicalize(&raw).map_err(|_| plan_not_found(plan_id))?;
+    if canonical.starts_with(&root) {
+        // Contained: keep using the stored path. The canonical form differs on
+        // macOS (`/private/var/…`) and Windows (`\\?\C:\…`) and must not leak
+        // into the index or into paths shown to users.
+        Ok(raw)
     } else {
         Err(plan_not_found(plan_id))
     }
