@@ -215,11 +215,11 @@ fn handle_path(store: &Store, tax: &Taxonomy, tx: &broadcast::Sender<LiveEvent>,
     }
 }
 
-#[cfg(test)]
+// The only test here needs Unix symlinks.
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
-    #[cfg(unix)]
     #[test]
     fn watched_paths_match_canonical_root() {
         let t = tempfile::tempdir().unwrap();

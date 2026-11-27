@@ -6,7 +6,6 @@ rust-version = "1.89"
 description = "Local app that aggregates Claude Code plans into one searchable, browsable place"
 license = "MIT"
 repository = "https://github.com/wik1ngst-1103/plan-atlas"
-homepage = "https://github.com/wik1ngst-1103/plan-atlas"
 readme = "README.md"
 
 [dependencies]

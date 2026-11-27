@@ -22,7 +22,7 @@ install-updater = false
 # The npm package should have this name
 npm-package = "plan-atlas"
 # Build the web UI (embedded into the binary) before cargo runs
-github-build-setup = "build-setup.yml"
+github-build-setup = "../build-setup.yml"
 # Native arm64 runner for the aarch64 Linux build
 [dist.github-custom-runners]
 aarch64-unknown-linux-gnu = "ubuntu-24.04-arm"

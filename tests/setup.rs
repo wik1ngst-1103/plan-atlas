@@ -2,7 +2,7 @@
 //! registration. Every test uses a temp claude home and a fake `claude` CLI.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use plan_atlas::setup::{
     McpStatus, SKILL_TEMPLATE, install, is_ephemeral_exe, merge_hooks, render_skill, uninstall,
@@ -272,7 +272,7 @@ fn skill_covers_plan_mode_repo_plans_and_deferred_tools() {
 }
 
 #[cfg(unix)]
-fn fake_claude(dir: &Path, get_exit: i32) -> (PathBuf, PathBuf) {
+fn fake_claude(dir: &Path, get_exit: i32) -> (std::path::PathBuf, std::path::PathBuf) {
     use std::os::unix::fs::PermissionsExt;
     let log = dir.join("claude.log");
     let script = dir.join("claude");

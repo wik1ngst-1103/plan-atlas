@@ -378,7 +378,7 @@ async fn poller_prunes_old_events_periodically() {
 fn exit_code_always_success() {
     let dir = tempfile::tempdir().unwrap();
     let home = dir.path().join("not-yet-created");
-    for input in [b"{not json".to_vec(), Vec::new(), fixture("pre_tool_read")] {
+    let hook = |input: Vec<u8>| {
         Command::cargo_bin("plan-atlas")
             .unwrap()
             .args(["hook", "--unexpected-flag"])
@@ -387,11 +387,21 @@ fn exit_code_always_success() {
             .assert()
             .code(0)
             .stdout("");
+    };
+    // Garbage, empty, and a valid payload against a home that does not exist
+    // yet: always exit 0, never print. Creating a fresh database may take
+    // longer than the hook's 200 ms budget on a slow CI runner, in which case
+    // the hook rightly drops the event instead of slowing Claude Code down.
+    for input in [b"{not json".to_vec(), Vec::new(), fixture("pre_tool_read")] {
+        hook(input);
     }
-    let store = open(&Paths::from_home(home));
+    // With the database already in place, a valid payload is recorded.
+    let store = open(&Paths::from_home(home.clone()));
+    let before = store.max_event_id().unwrap();
+    hook(fixture("pre_tool_read"));
     assert_eq!(
         store.max_event_id().unwrap(),
-        1,
+        before + 1,
         "valid payload was recorded"
     );
 }
