@@ -23,6 +23,19 @@ describe('router', () => {
       plan: 'PLAN-auth-001',
       tab: 'docs',
     });
+    expect(parseRoute('#/plan/PLAN-auth-001/docs/03-technical-analysis')).toEqual({
+      page: 'plan',
+      plan: 'PLAN-auth-001',
+      tab: 'docs',
+      anchor: '03-technical-analysis',
+    });
+    expect(formatRoute({ page: 'plan', plan: 'P 1', tab: 'docs', anchor: 'new-file-a-ts' })).toBe(
+      '#/plan/P%201/docs/new-file-a-ts',
+    );
+    expect(parseRoute('#/plan/P/tasks/x')).toEqual({ page: 'plan', plan: 'P', tab: 'tasks' });
+    expect(formatRoute({ page: 'plan', plan: 'P', tab: 'tasks', anchor: 'x' })).toBe(
+      '#/plan/P/tasks',
+    );
     expect(parseRoute('#/board')).toEqual({ page: 'board' });
     expect(parseRoute('#/map')).toEqual({ page: 'map' });
   });

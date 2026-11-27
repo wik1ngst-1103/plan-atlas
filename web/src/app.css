@@ -45,6 +45,9 @@
 * {
   box-sizing: border-box;
 }
+::selection {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+}
 body {
   margin: 0;
   font:
@@ -221,6 +224,10 @@ main {
   cursor: help;
 }
 @media (max-width: 900px) {
+  /* The page scrolls on phones; clip (not auto) keeps sticky headers working. */
+  main {
+    overflow: clip;
+  }
   .page {
     padding: 20px 16px 48px;
   }

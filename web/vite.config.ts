@@ -7,7 +7,8 @@ export default defineConfig(({ mode }) => ({
   build: { outDir: 'dist' },
   server: {
     proxy: {
-      '/api': { target: 'http://127.0.0.1:7420', changeOrigin: true },
+      // PLAN_ATLAS_API points the dev proxy at another backend (e.g. a scratch instance).
+      '/api': { target: process.env.PLAN_ATLAS_API ?? 'http://127.0.0.1:7420', changeOrigin: true },
     },
   },
   resolve: mode === 'test' ? { conditions: ['browser'] } : undefined,

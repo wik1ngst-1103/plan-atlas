@@ -49,3 +49,39 @@ describe('renderMarkdown sanitizing', () => {
     expect(html).toContain('src="data:image/png;base64,iVBORw0KGgo="');
   });
 });
+
+describe('renderMarkdown tables', () => {
+  it('wraps tables so they scroll inside their own box', () => {
+    const html = renderMarkdown('| a | b |\n|---|---|\n| 1 | 2 |');
+    expect(html).toMatch(/^<div class="table-wrap"><table>/);
+    expect(html).toContain('</table></div>');
+  });
+
+  it('does not touch table-like text inside attributes', () => {
+    const html = renderMarkdown('<a href="#x" title="<table> onmouseover=alert(1)">t</a>');
+    expect(html).not.toContain('table-wrap');
+    const box = document.createElement('div');
+    box.innerHTML = html;
+    expect(box.querySelector('a')?.getAttributeNames().sort()).toEqual(['href', 'title']);
+  });
+});
+
+describe('renderMarkdown table wrapping edge cases', () => {
+  it('does not wrap "tables" inside svg or math, and keeps them inert', () => {
+    const html = renderMarkdown(
+      '<svg><table><tr><td><img src=x onerror="alert(1)"></td></tr></table></svg>\n\n<math><table><tr><td>m</td></tr></table></math>',
+    );
+    expect(html).not.toContain('onerror');
+    const box = document.createElement('div');
+    box.innerHTML = html;
+    for (const w of box.querySelectorAll('.table-wrap')) {
+      expect(w.closest('svg, math')).toBeNull();
+    }
+  });
+
+  it('strips event handlers inside GFM table cells', () => {
+    const html = renderMarkdown('| a | b |\n|---|---|\n| <img src=x onerror="alert(1)"> | 2 |');
+    expect(html).toContain('table-wrap');
+    expect(html).not.toContain('onerror');
+  });
+});

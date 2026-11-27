@@ -21,12 +21,14 @@ function localImage(src: string): boolean {
   return !s.startsWith('//') && !s.startsWith('\\') && !/^[a-z][a-z0-9+.-]*:/i.test(s);
 }
 
+const HTML_NS = 'http://www.w3.org/1999/xhtml';
+
 let hooked = false;
 
 /**
  * Markdown → sanitized HTML. No styles, forms or embeds; remote images are
  * replaced by their alt text (no tracking pixels). External links open in a
- * new tab.
+ * new tab. Tables come wrapped in `div.table-wrap`.
  */
 export function renderMarkdown(md: string): string {
   if (!hooked) {
@@ -43,5 +45,17 @@ export function renderMarkdown(md: string): string {
     });
   }
   const html = marked.parse(md, { async: false, gfm: true });
-  return DOMPurify.sanitize(html, { FORBID_TAGS, FORBID_ATTR });
+  const clean = DOMPurify.sanitize(html, { FORBID_TAGS, FORBID_ATTR, RETURN_DOM_FRAGMENT: true });
+  // Wrap HTML tables on the sanitized tree, then serialize once: wide tables scroll inside
+  // the wrapper, not the page. (SVG/MathML elements named "table" are left alone.)
+  for (const table of clean.querySelectorAll('table')) {
+    if (table.namespaceURI !== HTML_NS) continue;
+    const wrap = document.createElement('div');
+    wrap.className = 'table-wrap';
+    table.replaceWith(wrap);
+    wrap.append(table);
+  }
+  const out = document.createElement('div');
+  out.append(clean);
+  return out.innerHTML;
 }

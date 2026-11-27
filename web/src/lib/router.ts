@@ -4,7 +4,7 @@ export type PlanTab = 'docs' | 'tasks';
 export type Route =
   | { page: 'home' }
   | { page: 'project'; project: string }
-  | { page: 'plan'; plan: string; tab: PlanTab }
+  | { page: 'plan'; plan: string; tab: PlanTab; anchor?: string }
   | { page: 'board' }
   | { page: 'map' };
 
@@ -17,14 +17,16 @@ const dec = (s: string) => {
 };
 
 export function parseRoute(hash: string): Route {
-  const [page, a, b] = hash.replace(/^#\/?/, '').split('/').map(dec);
+  const [page, a, b, c] = hash.replace(/^#\/?/, '').split('/').map(dec);
   switch (page) {
     case 'project':
       return a ? { page: 'project', project: a } : { page: 'home' };
     case 'plan':
-      return a
-        ? { page: 'plan', plan: a, tab: b === 'tasks' ? 'tasks' : 'docs' }
-        : { page: 'home' };
+      if (!a) return { page: 'home' };
+      // "#/plan/<id>/docs/<heading>": a link to one section of the document.
+      return b !== 'tasks' && c
+        ? { page: 'plan', plan: a, tab: 'docs', anchor: c }
+        : { page: 'plan', plan: a, tab: b === 'tasks' ? 'tasks' : 'docs' };
     case 'board':
       return { page: 'board' };
     case 'map':
@@ -40,7 +42,7 @@ export function formatRoute(r: Route): string {
     case 'project':
       return `#/project/${e(r.project)}`;
     case 'plan':
-      return `#/plan/${e(r.plan)}/${r.tab}`;
+      return `#/plan/${e(r.plan)}/${r.tab}${r.anchor && r.tab === 'docs' ? `/${e(r.anchor)}` : ''}`;
     default:
       return `#/${r.page}`;
   }

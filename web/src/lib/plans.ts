@@ -86,3 +86,51 @@ export function liveFirst(plans: PlanSummary[], activity: LiveTask[]): PlanSumma
 /** Distinct tasks Claude is working on. */
 export const runningCount = (activity: LiveTask[]) =>
   new Set(activity.filter((a) => a.agents.length).map((a) => `${a.plan_id}/${a.task_id}`)).size;
+
+/** "01. Overview" → { n: '01', name: 'Overview' }: one of the five standard plan sections. */
+export function standardSection(title: string): { n: string; name: string } | null {
+  const m = /^(0[1-5])\.\s*(.*)$/.exec(title.trim());
+  return m ? { n: m[1], name: m[2] || title.trim() } : null;
+}
+
+/**
+ * Headings that name a file, as imported plans often have:
+ * "New file: server/src/a.ts" → { label: 'New file', path: 'server/src/a.ts', note: '' },
+ * "src/b.ts (wire it up)" → { label: '', path: 'src/b.ts', note: '(wire it up)' }.
+ * The path must come first (after an optional "Label:") and look like one: a slash, or a
+ * name with an extension.
+ */
+export function pathHeading(title: string): { label: string; path: string; note: string } | null {
+  const m =
+    /^(?:([^:/`]{1,24}):\s+)?`?((?:[\w.@~-]+\/)+[\w.@~-]+\/?|[\w@~-][\w.@~-]*\.[a-z][a-z0-9]{0,5})`?(?:\s+(.+))?$/i.exec(
+      title.trim(),
+    );
+  if (!m) return null;
+  // A bare "Node.js" or "Vue.js vs React" is prose; a slash-less name needs a label or to stand
+  // alone in lower case ("package.json").
+  if (!m[2].includes('/') && !m[1] && (m[3] || !/^[a-z_.@~-]/.test(m[2]))) return null;
+  return { label: m[1]?.trim() ?? '', path: m[2], note: m[3]?.trim() ?? '' };
+}
+
+/** Minutes to read the plan at ~220 words a minute (code counts, it gets skimmed too). */
+export function readingMinutes(sections: Section[]): number {
+  let words = 0;
+  const walk = (ss: Section[]) => {
+    for (const s of ss) {
+      words += `${s.title} ${s.body_md}`.split(/\s+/).filter((w) => /\w/.test(w)).length;
+      walk(s.children);
+    }
+  };
+  walk(sections);
+  return Math.max(1, Math.round(words / 220));
+}
+
+/**
+ * Short name for a heading in "On this page": the file name for file-path headings, the
+ * name without its number for the standard sections, otherwise the heading itself.
+ */
+export function tocLabel(title: string): string {
+  const p = pathHeading(title);
+  if (p) return p.path.replace(/\/$/, '').split('/').pop() || p.path;
+  return standardSection(title)?.name ?? title;
+}
