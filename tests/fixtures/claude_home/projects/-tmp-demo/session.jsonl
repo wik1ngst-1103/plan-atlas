@@ -1,0 +1,3 @@
+{"type":"user","cwd":"{{CWD}}","message":"start"}
+not json at all
+{"type":"assistant","message":"wrote plans/demo-plan.md and plans/with-fm.md"}

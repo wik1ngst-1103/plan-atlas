@@ -68,12 +68,27 @@ fn main() -> ExitCode {
 fn run(command: Command) -> Result<(), String> {
     // Stubs: each later task replaces one arm with a real implementation.
     match command {
+        Command::Import => run_import(),
         Command::Serve { .. }
         | Command::Mcp
         | Command::Hook
         | Command::Setup { .. }
         | Command::UninstallClaude
-        | Command::Import
         | Command::Task { .. } => Err("not implemented yet".to_string()),
     }
+}
+
+fn run_import() -> Result<(), String> {
+    let claude_home = dirs::home_dir()
+        .ok_or("cannot determine home directory")?
+        .join(".claude");
+    let paths = plan_atlas::config::Paths::resolve();
+    paths.ensure().map_err(|e| e.to_string())?;
+    let r = plan_atlas::import::import_claude_plans(&claude_home, &paths)
+        .map_err(|e| format!("{e:#}"))?;
+    println!(
+        "Imported {}, skipped {} ({} unsorted)",
+        r.imported, r.skipped, r.unsorted
+    );
+    Ok(())
 }

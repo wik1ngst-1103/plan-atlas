@@ -1,5 +1,6 @@
 pub mod config;
 pub mod events;
+pub mod import;
 pub mod index;
 pub mod plan;
 pub mod store;
