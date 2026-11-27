@@ -72,15 +72,29 @@ const LOCK_FILE: &str = ".plan-atlas.lock";
 /// threads and across processes (server, `plan-atlas mcp` per Claude
 /// session, CLI).
 pub fn lock_dir(dir: &Path) -> Result<std::fs::File, OpError> {
+    let f = open_lock_file(dir)?;
+    f.lock().map_err(OpError::internal)?;
+    Ok(f)
+}
+
+/// [`lock_dir`] without waiting: `Ok(None)` when someone else holds it.
+pub fn try_lock_dir(dir: &Path) -> Result<Option<std::fs::File>, OpError> {
+    let f = open_lock_file(dir)?;
+    match f.try_lock() {
+        Ok(()) => Ok(Some(f)),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(None),
+        Err(std::fs::TryLockError::Error(e)) => Err(OpError::internal(e)),
+    }
+}
+
+fn open_lock_file(dir: &Path) -> Result<std::fs::File, OpError> {
     std::fs::create_dir_all(dir).map_err(OpError::internal)?;
-    let f = std::fs::OpenOptions::new()
+    std::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(false)
         .open(dir.join(LOCK_FILE))
-        .map_err(OpError::internal)?;
-    f.lock().map_err(OpError::internal)?;
-    Ok(f)
+        .map_err(OpError::internal)
 }
 
 /// Under the plan directory's lock: read → set the task's status line →

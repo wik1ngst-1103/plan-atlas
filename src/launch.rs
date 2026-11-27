@@ -186,6 +186,9 @@ fn initial_index(
     };
     match import::import_claude_plans(&claude_home, &paths) {
         Ok(r) => {
+            for f in &r.failures {
+                eprintln!("plan-atlas: import failed for {}: {}", f.source, f.error);
+            }
             if r.imported > 0 || r.failed > 0 {
                 eprintln!(
                     "plan-atlas: imported {} plan(s) from {} ({} failed)",

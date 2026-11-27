@@ -44,8 +44,15 @@ enum Command {
         #[arg(long, short)]
         yes: bool,
     },
-    /// Import plans from ~/.claude/plans
-    Import,
+    /// Import plans: from ~/.claude/plans, or from the given files and folders
+    Import {
+        /// Markdown files or folders (searched recursively for *.md).
+        /// Without any, imports ~/.claude/plans.
+        paths: Vec<std::path::PathBuf>,
+        /// Put the imported plans in this project instead of guessing it
+        #[arg(long, short)]
+        project: Option<String>,
+    },
     /// Update task status
     Task {
         #[command(subcommand)]
@@ -82,7 +89,7 @@ fn main() -> ExitCode {
 fn run(command: Command) -> Result<(), String> {
     // Stubs: each later task replaces one arm with a real implementation.
     match command {
-        Command::Import => run_import(),
+        Command::Import { paths, project } => run_import(&paths, project.as_deref()),
         Command::Hook => Ok(()), // handled in `main` before parsing
         Command::Mcp => {
             plan_atlas::mcp::run(plan_atlas::config::Paths::resolve()).map_err(|e| format!("{e:#}"))
@@ -109,23 +116,27 @@ fn run_serve(args: ServeArgs) -> Result<(), String> {
     result.map_err(|e| format!("{e:#}"))
 }
 
-fn run_import() -> Result<(), String> {
-    let claude_home = dirs::home_dir()
-        .ok_or("cannot determine home directory")?
-        .join(".claude");
+fn run_import(sources: &[std::path::PathBuf], project: Option<&str>) -> Result<(), String> {
+    use plan_atlas::import;
+    let claude_home =
+        plan_atlas::setup::claude_home().ok_or("cannot determine Claude Code config directory")?;
     let paths = plan_atlas::config::Paths::resolve();
     paths.ensure().map_err(|e| e.to_string())?;
-    let r = plan_atlas::import::import_claude_plans(&claude_home, &paths)
-        .map_err(|e| format!("{e:#}"))?;
-    let failed = if r.failed > 0 {
-        format!(", {} failed", r.failed)
+    let r = if sources.is_empty() && project.is_none() {
+        import::import_claude_plans(&claude_home, &paths)
+    } else if sources.is_empty() {
+        import::import_paths(&[claude_home.join("plans")], project, &claude_home, &paths)
     } else {
-        String::new()
-    };
-    println!(
-        "Imported {}, skipped {} ({} unsorted{failed})",
-        r.imported, r.skipped, r.unsorted
-    );
+        import::import_paths(sources, project, &claude_home, &paths)
+    }
+    .map_err(|e| format!("{e:#}"))?;
+    for f in &r.failures {
+        eprintln!("plan-atlas: import failed for {}: {}", f.source, f.error);
+    }
+    println!("{}", r.summary());
+    if r.failed > 0 {
+        return Err(format!("{} file(s) could not be imported", r.failed));
+    }
     Ok(())
 }
 

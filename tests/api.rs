@@ -198,6 +198,143 @@ async fn patch_without_header_forbidden() {
     );
 }
 
+const BOUNDARY: &str = "XPlanAtlasBoundary";
+
+/// A `multipart/form-data` body: `files` parts (name, bytes) then text fields.
+fn multipart(files: &[(&str, &[u8])], fields: &[(&str, &str)]) -> Vec<u8> {
+    let mut b = Vec::new();
+    for (name, bytes) in files {
+        b.extend_from_slice(
+            format!(
+                "--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"files\"; filename=\"{name}\"\r\nContent-Type: text/markdown\r\n\r\n"
+            )
+            .as_bytes(),
+        );
+        b.extend_from_slice(bytes);
+        b.extend_from_slice(b"\r\n");
+    }
+    for (k, v) in fields {
+        b.extend_from_slice(
+            format!("--{BOUNDARY}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n")
+                .as_bytes(),
+        );
+    }
+    b.extend_from_slice(format!("--{BOUNDARY}--\r\n").as_bytes());
+    b
+}
+
+fn upload(body: Vec<u8>, header: bool) -> Request<Body> {
+    let mut r = req("POST", "/api/import").header(
+        "content-type",
+        format!("multipart/form-data; boundary={BOUNDARY}"),
+    );
+    if header {
+        r = r.header("x-plan-atlas", "1");
+    }
+    r.body(Body::from(body)).unwrap()
+}
+
+#[tokio::test]
+async fn import_upload_two_files() {
+    let e = env();
+    let body = multipart(
+        &[
+            ("plans/one.md", b"# One\n\nFirst.\n"),
+            ("plans/deep/two.md", b"# Two\n"),
+        ],
+        &[],
+    );
+    let (st, v) = call(&e.app, upload(body, true)).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(v["imported"], 2);
+    assert_eq!(v["skipped"], 0);
+    assert_eq!(v["unsorted"], 2);
+    assert_eq!(v["failed"], 0);
+    let plans = v["plans"].as_array().unwrap();
+    assert_eq!(plans.len(), 2);
+    assert_eq!(plans[0]["id"], "PLAN-unsorted-001");
+    assert_eq!(plans[0]["title"], "One");
+    let text = std::fs::read_to_string(e.paths.unsorted.join("one.md")).unwrap();
+    assert!(text.contains("imported_from: upload:plans/one.md"));
+    // Indexed right away, so the returned ids open.
+    let (st, _) = call(
+        &e.app,
+        req("GET", "/api/plans/PLAN-unsorted-001")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(st, StatusCode::OK);
+    // Same upload again: skipped.
+    let body = multipart(&[("plans/one.md", b"# One\n\nFirst.\n")], &[]);
+    let (_, v) = call(&e.app, upload(body, true)).await;
+    assert_eq!(
+        (v["imported"].as_u64(), v["skipped"].as_u64()),
+        (Some(0), Some(1))
+    );
+}
+
+#[tokio::test]
+async fn import_upload_honours_project() {
+    let e = env();
+    let body = multipart(&[("x.md", b"# X\n")], &[("project", "NS Video")]);
+    let (st, v) = call(&e.app, upload(body, true)).await;
+    assert_eq!(st, StatusCode::OK, "{v}");
+    assert_eq!(v["unsorted"], 0);
+    assert_eq!(v["plans"][0]["project"], "ns-video");
+    assert!(e.paths.plans.join("ns-video/x.md").is_file());
+}
+
+#[tokio::test]
+async fn import_upload_without_header_forbidden() {
+    let e = env();
+    let body = multipart(&[("x.md", b"# X\n")], &[]);
+    let (st, _) = call(&e.app, upload(body, false)).await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
+    assert!(!e.paths.unsorted.join("x.md").exists());
+}
+
+#[tokio::test]
+async fn import_upload_rejects_non_md() {
+    let e = env();
+    let body = multipart(&[("ok.md", b"# Ok\n"), ("evil.sh", b"rm -rf /\n")], &[]);
+    let (st, v) = call(&e.app, upload(body, true)).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+    assert!(v["error"].as_str().unwrap().contains("evil.sh"), "{v}");
+    // All or nothing: nothing was written.
+    assert!(!e.paths.unsorted.join("ok.md").exists());
+}
+
+#[tokio::test]
+async fn import_upload_rejects_oversize_and_empty() {
+    let e = env();
+    let big = vec![b'a'; 2 * 1024 * 1024 + 1];
+    let body = multipart(&[("big.md", &big)], &[]);
+    let (st, v) = call(&e.app, upload(body, true)).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+    assert!(v["error"].is_string());
+    assert!(!e.paths.unsorted.join("big.md").exists());
+
+    let (st, v) = call(&e.app, upload(multipart(&[], &[]), true)).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+    assert!(v["error"].is_string());
+
+    // Too many files.
+    let many: Vec<(String, &[u8])> = (0..201)
+        .map(|i| (format!("p{i}.md"), b"# P\n" as &[u8]))
+        .collect();
+    let refs: Vec<(&str, &[u8])> = many.iter().map(|(n, b)| (n.as_str(), *b)).collect();
+    let (st, _) = call(&e.app, upload(multipart(&refs, &[]), true)).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST);
+
+    // Over the 20 MB total, each file under 2 MB.
+    let chunk = vec![b'a'; 2 * 1024 * 1024 - 100];
+    let many: Vec<String> = (0..11).map(|i| format!("c{i}.md")).collect();
+    let refs: Vec<(&str, &[u8])> = many.iter().map(|n| (n.as_str(), &chunk[..])).collect();
+    let (st, v) = call(&e.app, upload(multipart(&refs, &[]), true)).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST, "{v}");
+}
+
 #[tokio::test]
 async fn unknown_plan_404() {
     let e = env();

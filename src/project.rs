@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::plan::slug::slugify;
+use crate::plan::slug::{slugify, truncate_slug};
 
 /// Slug of the repository directory containing `cwd` (or of `cwd` itself
 /// outside a repository); `None` when that slug is empty.
@@ -19,6 +19,30 @@ pub fn project_root_name(cwd: &Path) -> Option<String> {
     let base = root.file_name()?.to_string_lossy();
     let base = base.strip_suffix(".git").unwrap_or(&base);
     Some(slugify(base)).filter(|s| !s.is_empty())
+}
+
+/// Like [`project_root_name`], but `None` when `path` is not inside a git
+/// repository (instead of falling back to the directory's own name).
+pub fn repo_project_name(path: &Path) -> Option<String> {
+    path.ancestors()
+        .any(|d| d.join(".git").exists())
+        .then(|| project_root_name(path))
+        .flatten()
+}
+
+/// Longest project name (directory name and id part).
+pub const MAX_PROJECT_LEN: usize = 64;
+
+/// A user-given project name as a directory-safe slug (`[a-z0-9-]`, at most
+/// [`MAX_PROJECT_LEN`] bytes), or `unsorted` when nothing is left.
+pub fn sanitize_project(name: &str) -> String {
+    let s = slugify(name);
+    let s = truncate_slug(&s, MAX_PROJECT_LEN);
+    if s.is_empty() {
+        "unsorted".to_string()
+    } else {
+        s.to_string()
+    }
 }
 
 /// For a checkout whose `.git` is a file, the main repository's directory.

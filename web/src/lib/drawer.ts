@@ -4,7 +4,8 @@ export type DrawerItem =
   | { type: 'task'; plan: string; task: string }
   | { type: 'topic'; tag: string }
   | { type: 'plan'; plan: string }
-  | { type: 'activity' };
+  | { type: 'activity' }
+  | { type: 'import' };
 
 export type DrawerStack = DrawerItem[];
 

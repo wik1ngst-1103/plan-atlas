@@ -17,11 +17,10 @@ use time::{OffsetDateTime, UtcOffset};
 use crate::config::Paths;
 use crate::index::index_file;
 use crate::ops::{OpError, lock_dir, safe_plan_path, set_task_status_op, valid_id};
-use crate::plan::slug::slugify;
 use crate::plan::{
     Plan, TaskStatus, Warning, next_plan_id, parse_plan, plan_file_name, write_atomic,
 };
-use crate::project::project_root_name;
+use crate::project::{project_root_name, sanitize_project};
 use crate::store::{PlanFilter, Store};
 use crate::taxonomy::Taxonomy;
 
@@ -172,16 +171,6 @@ pub fn run(paths: Paths) -> anyhow::Result<()> {
     // A pending stdin read cannot be cancelled; don't wait for it.
     rt.shutdown_background();
     Ok(())
-}
-
-/// Sanitize to `[a-z0-9-]` (falls back to `unsorted` when nothing is left).
-fn sanitize_project(name: &str) -> String {
-    let s = slugify(name);
-    if s.is_empty() {
-        "unsorted".to_string()
-    } else {
-        s
-    }
 }
 
 /// Repository directory name of `cwd` (main repository for worktrees).

@@ -7,7 +7,7 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::model::TaskStatus;
-use super::slug::slugify;
+use super::slug::{slugify, truncate_slug};
 
 const MAX_SLUG_LEN: usize = 60;
 
@@ -180,15 +180,8 @@ pub fn next_plan_id(project: &str, existing: &[String]) -> String {
 
 /// `<created>-<slug>.md` with the slug limited to 60 chars at a `-` boundary.
 pub fn plan_file_name(created: &str, title: &str) -> String {
-    let mut slug = slugify(title);
-    if slug.len() > MAX_SLUG_LEN {
-        // Slug is ASCII, so byte slicing is safe.
-        slug = match slug[..=MAX_SLUG_LEN].rfind('-') {
-            Some(i) if i > 0 => slug[..i].to_string(),
-            _ => slug[..MAX_SLUG_LEN].to_string(),
-        };
-    }
-    let slug = slug.trim_end_matches('-');
+    let slug = slugify(title);
+    let slug = truncate_slug(&slug, MAX_SLUG_LEN);
     let slug = if slug.is_empty() { "plan" } else { slug };
     format!("{created}-{slug}.md")
 }
