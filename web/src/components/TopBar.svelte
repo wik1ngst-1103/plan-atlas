@@ -14,7 +14,9 @@
   <div class="search-slot" id="search-slot"></div>
   {#if working > 0}
     <button class="livepill" onclick={() => drawer.open({ type: 'activity' })}>
-      <span class="live"></span>{$t('live.working', { n: working })}
+      <span class="live"></span>{working === 1
+        ? $t('live.workingOne')
+        : $t('live.working', { n: working })}
     </button>
   {/if}
   <div class="lang" role="group" aria-label={$t('topbar.language')}>

@@ -61,6 +61,8 @@
   "drawer.label": "Chi tiết",
   "drawer.task": "Việc",
   "drawer.topic": "Chủ đề",
+  "drawer.plan": "Plan",
+  "drawer.activity": "Hoạt động",
   "drawer.topicIn": "Chủ đề · {group}",
   "drawer.planSummary": "Tóm tắt plan",
   "drawer.belongsTo": "Thuộc plan",

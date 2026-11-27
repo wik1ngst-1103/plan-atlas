@@ -1,6 +1,17 @@
 <script lang="ts">
+  import { planProject } from '../lib/planProject';
   import { t } from '../lib/i18n';
   import { route } from '../lib/router';
+
+  let project = $state<string | null>(null);
+  $effect(() => {
+    const r = $route;
+    project = null;
+    if (r.page !== 'plan') return;
+    let live = true;
+    void planProject(r.plan).then((p) => live && (project = p));
+    return () => (live = false);
+  });
 </script>
 
 <nav class="crumbs" aria-label="Breadcrumb">
@@ -11,9 +22,11 @@
     {#if $route.page === 'project'}
       <b>{$t('nav.project', { name: $route.project })}</b>
     {:else if $route.page === 'plan'}
-      <a href="#/project/{$route.plan.split('-').slice(1, -1).join('-')}">
-        {$t('nav.project', { name: $route.plan.split('-').slice(1, -1).join('-') })}
-      </a><span class="sep">›</span><b>{$route.plan}</b>
+      {#if project}
+        <a href="#/project/{encodeURIComponent(project)}">
+          {$t('nav.project', { name: project })}
+        </a><span class="sep">›</span>
+      {/if}<b>{$route.plan}</b>
     {:else if $route.page === 'board'}
       <b>{$t('nav.board')}</b>
     {:else}

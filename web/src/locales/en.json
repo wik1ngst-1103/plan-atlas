@@ -61,6 +61,8 @@
   "drawer.label": "Details",
   "drawer.task": "Task",
   "drawer.topic": "Topic",
+  "drawer.plan": "Plan",
+  "drawer.activity": "Activity",
   "drawer.topicIn": "Topic · {group}",
   "drawer.planSummary": "Plan summary",
   "drawer.belongsTo": "Part of plan",
