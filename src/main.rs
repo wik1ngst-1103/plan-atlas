@@ -134,6 +134,9 @@ fn run_import(sources: &[std::path::PathBuf], project: Option<&str>) -> Result<(
         eprintln!("plan-atlas: import failed for {}: {}", f.source, f.error);
     }
     println!("{}", r.summary());
+    if r.failed > 0 {
+        return Err(format!("{} file(s) could not be imported", r.failed));
+    }
     Ok(())
 }
 

@@ -56,9 +56,29 @@ fn cli_import_reports_failures_on_stderr() {
     isolated(tmp.path())
         .args(["import", missing.to_str().unwrap()])
         .assert()
-        .success()
+        .code(1)
         .stdout(predicate::str::contains("1 failed"))
         .stderr(predicate::str::contains("nope.md"));
+}
+
+#[test]
+fn cli_import_relative_paths_inside_a_repo_use_the_repo_name() {
+    let tmp = tempfile::tempdir().unwrap();
+    let repo = tmp.path().join("work/My App");
+    std::fs::create_dir_all(repo.join(".git")).unwrap();
+    std::fs::create_dir_all(repo.join("docs/plans")).unwrap();
+    std::fs::write(repo.join("top.md"), "# Top\n").unwrap();
+    std::fs::write(repo.join("docs/plans/inner.md"), "# Inner\n").unwrap();
+    isolated(tmp.path())
+        .current_dir(&repo)
+        .args(["import", "top.md", "docs"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Imported 2, skipped 0 (0 unsorted)",
+        ));
+    assert!(tmp.path().join("atlas/plans/my-app/top.md").is_file());
+    assert!(tmp.path().join("atlas/plans/my-app/inner.md").is_file());
 }
 
 #[test]
