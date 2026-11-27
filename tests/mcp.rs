@@ -1,6 +1,7 @@
 //! Drives `plan-atlas mcp` over newline-delimited JSON-RPC on stdin/stdout,
 //! and `plan-atlas task start|done` as a subprocess.
 
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -51,6 +52,8 @@ struct Mcp {
     stdin: ChildStdin,
     lines: Receiver<String>,
     next_id: u64,
+    /// Responses read while waiting for a different id.
+    pending: HashMap<u64, Value>,
 }
 
 impl Mcp {
@@ -80,6 +83,7 @@ impl Mcp {
             stdin,
             lines: rx,
             next_id: 1,
+            pending: HashMap::new(),
         };
         let init = mcp.request(
             "initialize",
@@ -99,21 +103,39 @@ impl Mcp {
         self.stdin.flush().unwrap();
     }
 
-    /// Send a request and wait for the response with the same id.
-    fn request(&mut self, method: &str, params: Value) -> Value {
+    /// Send a request without waiting; returns its id.
+    fn send_request(&mut self, method: &str, params: Value) -> u64 {
         let id = self.next_id;
         self.next_id += 1;
         self.send(json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
+        id
+    }
+
+    /// Wait for the response with this id.
+    fn wait(&mut self, id: u64) -> Value {
+        if let Some(v) = self.pending.remove(&id) {
+            return v;
+        }
         loop {
             let line = self
                 .lines
                 .recv_timeout(TIMEOUT)
                 .expect("no response from MCP server");
             let v: Value = serde_json::from_str(&line).unwrap();
-            if v.get("id") == Some(&json!(id)) {
-                return v;
+            match v.get("id").and_then(Value::as_u64) {
+                Some(got) if got == id => return v,
+                Some(got) => {
+                    self.pending.insert(got, v);
+                }
+                None => {}
             }
         }
+    }
+
+    /// Send a request and wait for the response with the same id.
+    fn request(&mut self, method: &str, params: Value) -> Value {
+        let id = self.send_request(method, params);
+        self.wait(id)
     }
 
     /// `tools/call`; returns (is_error, parsed JSON of the first text content
@@ -443,6 +465,68 @@ fn list_search_and_taxonomy() {
     assert!(feature["group"].as_str().is_some_and(|g| !g.is_empty()));
     assert!(feature["label_en"].as_str().is_some_and(|l| !l.is_empty()));
     assert!(feature["desc_en"].is_string());
+}
+
+/// `create_plan` results (plan_id, path) for already-sent request ids.
+fn collect_created(mcp: &mut Mcp, ids: &[u64]) -> Vec<(String, PathBuf)> {
+    ids.iter()
+        .map(|&id| {
+            let resp = mcp.wait(id);
+            let result = &resp["result"];
+            assert_ne!(result["isError"], json!(true), "{resp}");
+            let out: Value =
+                serde_json::from_str(result["content"][0]["text"].as_str().unwrap()).unwrap();
+            (
+                out["plan_id"].as_str().unwrap().to_string(),
+                PathBuf::from(out["path"].as_str().unwrap()),
+            )
+        })
+        .collect()
+}
+
+fn send_creates(mcp: &mut Mcp, n: usize) -> Vec<u64> {
+    (0..n)
+        .map(|_| {
+            mcp.send_request(
+                "tools/call",
+                json!({ "name": "create_plan", "arguments": { "markdown": FULL_PLAN } }),
+            )
+        })
+        .collect()
+}
+
+fn assert_unique(created: &[(String, PathBuf)]) {
+    let ids: HashSet<&String> = created.iter().map(|(id, _)| id).collect();
+    let paths: HashSet<&PathBuf> = created.iter().map(|(_, p)| p).collect();
+    assert_eq!(ids.len(), created.len(), "{created:?}");
+    assert_eq!(paths.len(), created.len(), "{created:?}");
+    for (id, path) in created {
+        let text = std::fs::read_to_string(path).unwrap();
+        assert!(text.contains(&format!("id: {id}\n")), "{text}");
+    }
+}
+
+#[test]
+fn parallel_create_plan_assigns_unique_ids() {
+    let env = Env::new();
+    let mut mcp = Mcp::start(&env);
+    let ids = send_creates(&mut mcp, 8);
+    let created = collect_created(&mut mcp, &ids);
+    assert_unique(&created);
+    assert_eq!(md_files(&env.plans().join("my-repo")).len(), 8);
+}
+
+#[test]
+fn two_mcp_processes_assign_unique_ids() {
+    let env = Env::new();
+    let mut a = Mcp::start(&env);
+    let mut b = Mcp::start(&env);
+    let ids_a = send_creates(&mut a, 6);
+    let ids_b = send_creates(&mut b, 6);
+    let mut created = collect_created(&mut a, &ids_a);
+    created.extend(collect_created(&mut b, &ids_b));
+    assert_unique(&created);
+    assert_eq!(md_files(&env.plans().join("my-repo")).len(), 12);
 }
 
 /// A home with the structured fixture indexed in-process.

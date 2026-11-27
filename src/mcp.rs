@@ -306,28 +306,65 @@ fn get_plan(ctx: &Ctx, plan_id: &str) -> Result<Plan, OpError> {
         .ok_or_else(not_found)
 }
 
+const LOCK_FILE: &str = ".plan-atlas.lock";
+
+/// Exclusive advisory lock on `<dir>/.plan-atlas.lock`, held until the
+/// returned file is dropped. Serializes id assignment and writes across
+/// threads and across `plan-atlas mcp` processes (one per Claude session).
+fn lock_dir(dir: &Path) -> Result<std::fs::File, OpError> {
+    std::fs::create_dir_all(dir).map_err(OpError::internal)?;
+    let f = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(dir.join(LOCK_FILE))
+        .map_err(OpError::internal)?;
+    f.lock().map_err(OpError::internal)?;
+    Ok(f)
+}
+
+/// Plan ids of `project`: the index plus the frontmatter of every visible
+/// `*.md` in `dir` (files the index may not have picked up yet).
+fn known_plan_ids(ctx: &Ctx, project: &str, dir: &Path) -> Result<Vec<String>, OpError> {
+    let mut ids = ctx
+        .store
+        .plan_ids_for_project(project)
+        .map_err(OpError::internal)?;
+    for entry in std::fs::read_dir(dir).map_err(OpError::internal)?.flatten() {
+        let path = entry.path();
+        let visible = !entry.file_name().to_string_lossy().starts_with('.');
+        if visible
+            && path.extension().is_some_and(|e| e == "md")
+            && let Ok(bytes) = std::fs::read(&path)
+        {
+            ids.push(parse_plan(&bytes, &path).id);
+        }
+    }
+    Ok(ids)
+}
+
 fn create_plan(ctx: &Ctx, args: CreatePlanArgs) -> Result<WriteResult, OpError> {
     let project = match &args.project {
         Some(p) => sanitize_project(p),
         None => ctx.default_project.clone(),
     };
-    let existing = ctx
-        .store
-        .plan_ids_for_project(&project)
-        .map_err(OpError::internal)?;
-    let id = next_plan_id(&project, &existing);
+    let dir = ctx.paths.plans.join(&project);
+    let _lock = lock_dir(&dir)?;
+    let id = next_plan_id(&project, &known_plan_ids(ctx, &project, &dir)?);
     let created = ctx.today();
     let text = with_frontmatter(&args.markdown, &id, &project, &created)?;
     let title = parse_plan(text.as_bytes(), Path::new(UNTITLED)).title;
-    let dir = ctx.paths.plans.join(&project);
-    std::fs::create_dir_all(&dir).map_err(OpError::internal)?;
     let path = free_path(&dir, &plan_file_name(&created, &title));
     write_and_index(ctx, &path, text.as_bytes())
 }
 
 fn update_plan(ctx: &Ctx, args: UpdatePlanArgs) -> Result<WriteResult, OpError> {
-    let old = get_plan(ctx, &args.plan_id)?;
     let path = safe_plan_path(&ctx.store, &ctx.paths, &args.plan_id)?;
+    let dir = path
+        .parent()
+        .ok_or_else(|| OpError::internal("plan path has no parent"))?;
+    let _lock = lock_dir(dir)?;
+    let old = get_plan(ctx, &args.plan_id)?;
     let created = old.created.unwrap_or_else(|| ctx.today());
     let text = with_frontmatter(&args.markdown, &old.id, &old.project, &created)?;
     write_and_index(ctx, &path, text.as_bytes())
