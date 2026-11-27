@@ -57,7 +57,7 @@ impl Taxonomy {
         self.tags.contains_key(tag)
     }
 
-    fn embedded_default() -> Taxonomy {
+    pub fn embedded_default() -> Taxonomy {
         toml::from_str(DEFAULT_TAXONOMY).expect("embedded default taxonomy is valid")
     }
 }

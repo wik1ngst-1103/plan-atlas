@@ -9,14 +9,19 @@ repository = "https://github.com/WiK1ngST/plan-atlas"
 readme = "README.md"
 
 [dependencies]
+blake3 = "1.8.8"
 clap = { version = "4", features = ["derive", "env"] }
 dirs = "7.0.0"
+pulldown-cmark = { version = "0.13.6", default-features = false }
 serde = { version = "1.0.229", features = ["derive"] }
+serde_yaml_ng = "0.10.0"
 toml = "1.2.3"
+ts-rs = "12.0.1"
 
 [dev-dependencies]
 assert_cmd = "2"
 predicates = "3"
+serde_json = "1.0.154"
 tempfile = "3.27.0"
 
 [profile.release]
