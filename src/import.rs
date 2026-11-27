@@ -22,26 +22,34 @@ pub struct ImportReport {
     pub imported: usize,
     pub skipped: usize,
     pub unsorted: usize,
+    pub failed: usize,
 }
 
-/// Split `---` frontmatter from the body. Returns the parsed mapping and body;
-/// text without valid mapping frontmatter yields `(None, whole text)`.
-fn split_frontmatter(text: &str) -> (Option<Mapping>, &str) {
+/// Split `---` frontmatter from the body. Returns the parsed mapping, the
+/// body, and (when a leading block exists but is not a valid mapping) the raw
+/// block text so the caller can preserve it.
+fn split_frontmatter_full(text: &str) -> (Option<Mapping>, &str, Option<&str>) {
     let Some(rest) = text.strip_prefix("---\n") else {
-        return (None, text);
+        return (None, text, None);
     };
     let mut pos = 0;
     for line in rest.split_inclusive('\n') {
         if line.trim_end() == "---" {
+            let after = &rest[pos + line.len()..];
             return match serde_yaml_ng::from_str::<Value>(&rest[..pos]) {
-                Ok(Value::Mapping(m)) => (Some(m), &rest[pos + line.len()..]),
-                Ok(Value::Null) => (Some(Mapping::new()), &rest[pos + line.len()..]),
-                _ => (None, text),
+                Ok(Value::Mapping(m)) => (Some(m), after, None),
+                Ok(Value::Null) => (Some(Mapping::new()), after, None),
+                _ => (None, after, Some(&text[..text.len() - after.len()])),
             };
         }
         pos += line.len();
     }
-    (None, text)
+    (None, text, None)
+}
+
+fn split_frontmatter(text: &str) -> (Option<Mapping>, &str) {
+    let (m, body, _) = split_frontmatter_full(text);
+    (m, body)
 }
 
 fn str_field(m: &Mapping, key: &str) -> Option<String> {
@@ -192,70 +200,86 @@ pub fn import_claude_plans(claude_home: &Path, paths: &Paths) -> Result<ImportRe
     let mut ids_by_dir: HashMap<PathBuf, Vec<String>> = HashMap::new();
 
     for src in sources {
-        let bytes = fs::read(&src).with_context(|| format!("reading {}", src.display()))?;
-        let hash = blake3::hash(&bytes).to_hex().to_string();
-        let abs = fs::canonicalize(&src).unwrap_or_else(|_| src.clone());
-        let from = abs.to_string_lossy().to_string();
-        let text = String::from_utf8_lossy(&bytes).into_owned();
-        let (fm, body) = split_frontmatter(&text);
-        let mut fm = fm;
+        let res = (|| -> Result<()> {
+            let bytes = fs::read(&src).with_context(|| format!("reading {}", src.display()))?;
+            let hash = blake3::hash(&bytes).to_hex().to_string();
+            let abs = fs::canonicalize(&src).unwrap_or_else(|_| src.clone());
+            let from = abs.to_string_lossy().to_string();
+            let text = String::from_utf8_lossy(&bytes).into_owned();
+            let (fm, body, invalid) = split_frontmatter_full(&text);
+            let mut fm = fm;
 
-        let (dest, project, id, is_unsorted) = match known.get(&from) {
-            Some(k) if k.hash == hash => {
-                report.skipped += 1;
-                continue;
-            }
-            Some(k) => {
-                let old = frontmatter_of(&k.dest).unwrap_or_default();
-                let project = str_field(&old, "project").unwrap_or_else(|| UNSORTED.into());
-                let id = str_field(&old, "id");
-                let uns = k.dest.parent() == Some(paths.unsorted.as_path());
-                (k.dest.clone(), project, id, uns)
-            }
-            None => {
-                let name = src.file_name().unwrap().to_string_lossy().to_string();
-                let inferred = infer_project(&name, claude_home);
-                let (dir, project, uns) = match inferred {
-                    Some(p) => (paths.plans.join(&p), p, false),
-                    None => (paths.unsorted.clone(), UNSORTED.to_string(), true),
-                };
-                fs::create_dir_all(&dir)?;
-                let dest = free_name(&dir, &name);
-                (dest, project, None, uns)
-            }
-        };
+            let (dest, project, id, is_unsorted) = match known.get(&from) {
+                Some(k) if k.hash == hash => {
+                    report.skipped += 1;
+                    return Ok(());
+                }
+                Some(k) => {
+                    let old = frontmatter_of(&k.dest).unwrap_or_default();
+                    let project = str_field(&old, "project").unwrap_or_else(|| UNSORTED.into());
+                    let id = str_field(&old, "id");
+                    let uns = k.dest.parent() == Some(paths.unsorted.as_path());
+                    (k.dest.clone(), project, id, uns)
+                }
+                None => {
+                    let name = src.file_name().unwrap().to_string_lossy().to_string();
+                    let inferred = infer_project(&name, claude_home);
+                    let (dir, project, uns) = match inferred {
+                        Some(p) => (paths.plans.join(&p), p, false),
+                        None => (paths.unsorted.clone(), UNSORTED.to_string(), true),
+                    };
+                    fs::create_dir_all(&dir)?;
+                    let dest = free_name(&dir, &name);
+                    (dest, project, None, uns)
+                }
+            };
 
-        let id = match id {
-            Some(id) => id,
-            None => {
-                let dir = dest.parent().unwrap().to_path_buf();
-                let ids = ids_by_dir
-                    .entry(dir.clone())
-                    .or_insert_with(|| project_ids(&dir));
-                let id = next_plan_id(&project, ids);
-                ids.push(id.clone());
-                id
-            }
-        };
+            let id = match id {
+                Some(id) => id,
+                None => {
+                    let dir = dest.parent().unwrap().to_path_buf();
+                    let ids = ids_by_dir
+                        .entry(dir.clone())
+                        .or_insert_with(|| project_ids(&dir));
+                    let id = next_plan_id(&project, ids);
+                    ids.push(id.clone());
+                    id
+                }
+            };
 
-        let mut map = fm.take().unwrap_or_else(|| {
-            let title = first_heading(body)
-                .unwrap_or_else(|| src.file_stem().unwrap_or_default().to_string_lossy().into());
-            let mut m = Mapping::new();
-            m.insert("title".into(), title.into());
-            m
-        });
-        map.insert("id".into(), id.into());
-        map.insert("project".into(), project.into());
-        map.insert("imported_from".into(), from.clone().into());
-        map.insert("imported_hash".into(), hash.clone().into());
-        let out = format!("{}{}", build_yaml(map), body);
-        write_atomic(&dest, out.as_bytes())
-            .with_context(|| format!("writing {}", dest.display()))?;
-        known.insert(from, Known { hash, dest });
-        report.imported += 1;
-        if is_unsorted {
-            report.unsorted += 1;
+            let mut map = fm.take().unwrap_or_else(|| {
+                let title = first_heading(body).unwrap_or_else(|| {
+                    src.file_stem().unwrap_or_default().to_string_lossy().into()
+                });
+                let mut m = Mapping::new();
+                m.insert("title".into(), title.into());
+                m
+            });
+            map.insert("id".into(), id.into());
+            map.insert("project".into(), project.into());
+            map.insert("imported_from".into(), from.clone().into());
+            map.insert("imported_hash".into(), hash.clone().into());
+            let mut out = format!("{}{}", build_yaml(map), body);
+            if let Some(raw) = invalid {
+                if !out.ends_with('\n') {
+                    out.push('\n');
+                }
+                out.push_str(&format!(
+                    "\n<!-- original frontmatter (invalid) -->\n```yaml\n{raw}```\n"
+                ));
+            }
+            write_atomic(&dest, out.as_bytes())
+                .with_context(|| format!("writing {}", dest.display()))?;
+            known.insert(from, Known { hash, dest });
+            report.imported += 1;
+            if is_unsorted {
+                report.unsorted += 1;
+            }
+            Ok(())
+        })();
+        if let Err(e) = res {
+            eprintln!("plan-atlas: import failed for {}: {e:#}", src.display());
+            report.failed += 1;
         }
     }
     Ok(report)

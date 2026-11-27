@@ -86,8 +86,13 @@ fn run_import() -> Result<(), String> {
     paths.ensure().map_err(|e| e.to_string())?;
     let r = plan_atlas::import::import_claude_plans(&claude_home, &paths)
         .map_err(|e| format!("{e:#}"))?;
+    let failed = if r.failed > 0 {
+        format!(", {} failed", r.failed)
+    } else {
+        String::new()
+    };
     println!(
-        "Imported {}, skipped {} ({} unsorted)",
+        "Imported {}, skipped {} ({} unsorted{failed})",
         r.imported, r.skipped, r.unsorted
     );
     Ok(())

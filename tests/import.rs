@@ -61,7 +61,8 @@ fn imports_and_infers_project() {
         ImportReport {
             imported: 3,
             skipped: 0,
-            unsorted: 1
+            unsorted: 1,
+            failed: 0
         }
     );
     let dest = e.paths.plans.join("my-repo/demo-plan.md");
@@ -98,7 +99,8 @@ fn idempotent_second_run() {
         ImportReport {
             imported: 0,
             skipped: 3,
-            unsorted: 0
+            unsorted: 0,
+            failed: 0
         }
     );
     // Changed source overwrites the same destination, keeping its id.
@@ -149,5 +151,48 @@ fn missing_plans_dir_is_zero_report() {
     assert_eq!(
         import_claude_plans(&empty, &e.paths).unwrap(),
         ImportReport::default()
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn unreadable_source_is_skipped_not_fatal() {
+    use std::os::unix::fs::PermissionsExt;
+    let e = setup();
+    let bad = e.claude.join("plans/mystery.md");
+    fs::set_permissions(&bad, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read(&bad).is_ok() {
+        // Running as root: permissions are not enforced.
+        fs::set_permissions(&bad, fs::Permissions::from_mode(0o644)).unwrap();
+        return;
+    }
+    let r = import_claude_plans(&e.claude, &e.paths).unwrap();
+    fs::set_permissions(&bad, fs::Permissions::from_mode(0o644)).unwrap();
+    assert_eq!((r.imported, r.failed), (2, 1));
+}
+
+#[test]
+fn invalid_source_frontmatter_not_duplicated() {
+    let e = setup();
+    let orig = "---\n: [unclosed\n---\n# Broken\n\nBody.\n";
+    fs::write(e.claude.join("plans/broken.md"), orig).unwrap();
+    import_claude_plans(&e.claude, &e.paths).unwrap();
+    let dest = e.paths.unsorted.join("broken.md");
+    let text = fs::read_to_string(&dest).unwrap();
+    assert!(text.starts_with("---\n"));
+    // Exactly one leading block: the second `---` line closes it, the only
+    // other `---` lines are inside the fenced copy of the original.
+    let p = parse_plan(text.as_bytes(), &dest);
+    assert!(p.warnings.iter().all(|w| w.code != "invalid_frontmatter"));
+    assert!(p.id.starts_with("PLAN-unsorted-"));
+    assert!(text.contains("<!-- original frontmatter (invalid) -->"));
+    assert!(text.contains("```yaml\n---\n: [unclosed\n---\n```"));
+    assert!(text.contains("# Broken"));
+    assert!(
+        !text[4..]
+            .split("\n---\n")
+            .next()
+            .unwrap()
+            .contains("unclosed")
     );
 }
