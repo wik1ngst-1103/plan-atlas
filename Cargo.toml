@@ -1,0 +1,23 @@
+[package]
+name = "plan-atlas"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Local app that aggregates Claude Code plans into one searchable, browsable place"
+license = "MIT"
+repository = "https://github.com/WiK1ngST/plan-atlas"
+readme = "README.md"
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "unwind"
