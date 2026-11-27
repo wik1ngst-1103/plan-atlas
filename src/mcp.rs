@@ -21,6 +21,7 @@ use crate::plan::slug::slugify;
 use crate::plan::{
     Plan, TaskStatus, Warning, next_plan_id, parse_plan, plan_file_name, write_atomic,
 };
+use crate::project::project_root_name;
 use crate::store::{PlanFilter, Store};
 use crate::taxonomy::Taxonomy;
 
@@ -183,17 +184,9 @@ fn sanitize_project(name: &str) -> String {
     }
 }
 
-/// Basename of the nearest ancestor of `cwd` containing `.git`, or of `cwd`.
+/// Repository directory name of `cwd` (main repository for worktrees).
 fn default_project(cwd: &Path) -> String {
-    let root = cwd
-        .ancestors()
-        .find(|d| d.join(".git").exists())
-        .unwrap_or(cwd);
-    let base = root
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    sanitize_project(&base)
+    project_root_name(cwd).unwrap_or_else(|| "unsorted".to_string())
 }
 
 /// Split `---\n<yaml>---\n<body>`; returns (yaml, body). Body is untouched.

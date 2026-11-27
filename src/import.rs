@@ -11,8 +11,8 @@ use anyhow::{Context, Result};
 use serde_yaml_ng::{Mapping, Value};
 
 use crate::config::Paths;
-use crate::plan::slug::slugify;
 use crate::plan::{next_plan_id, write_atomic};
+use crate::project::project_root_name;
 
 const MAX_TRANSCRIPT_BYTES: u64 = 50 * 1024 * 1024;
 const UNSORTED: &str = "unsorted";
@@ -74,13 +74,6 @@ fn frontmatter_of(path: &Path) -> Option<Mapping> {
     split_frontmatter(&String::from_utf8_lossy(&bytes)).0
 }
 
-fn git_root_or_self(cwd: &Path) -> PathBuf {
-    cwd.ancestors()
-        .find(|a| a.join(".git").exists())
-        .unwrap_or(cwd)
-        .to_path_buf()
-}
-
 /// Find which project produced `plan_file_name` by scanning Claude Code
 /// transcripts under `claude_home/projects/*/*.jsonl`.
 pub fn infer_project(plan_file_name: &str, claude_home: &Path) -> Option<String> {
@@ -100,12 +93,10 @@ pub fn infer_project(plan_file_name: &str, claude_home: &Path) -> Option<String>
             .collect();
         files.sort();
         for file in files {
-            if let Some(cwd) = cwd_for_match(&file, plan_file_name) {
-                let root = git_root_or_self(Path::new(&cwd));
-                let name = slugify(&root.file_name()?.to_string_lossy());
-                if !name.is_empty() {
-                    return Some(name);
-                }
+            if let Some(cwd) = cwd_for_match(&file, plan_file_name)
+                && let Some(name) = project_root_name(Path::new(&cwd))
+            {
+                return Some(name);
             }
         }
     }

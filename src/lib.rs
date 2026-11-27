@@ -6,6 +6,7 @@ pub mod launch;
 pub mod mcp;
 pub mod ops;
 pub mod plan;
+pub mod project;
 pub mod server;
 pub mod setup;
 pub mod store;
