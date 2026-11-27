@@ -19,7 +19,9 @@ rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 serde_yaml_ng = "0.10.0"
-tokio = { version = "1.54.1", features = ["sync", "rt-multi-thread", "macros", "time"] }
+axum = "0.8"
+futures-util = { version = "0.3", default-features = false }
+tokio = { version = "1.54.1", features = ["sync", "rt-multi-thread", "macros", "time", "net"] }
 toml = "1.2.3"
 ts-rs = "12.0.1"
 unicode-normalization = "0.1.26"
@@ -28,6 +30,8 @@ unicode-normalization = "0.1.26"
 assert_cmd = "2"
 predicates = "3"
 tempfile = "3.27.0"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
 
 [profile.release]
 opt-level = 3

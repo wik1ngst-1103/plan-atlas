@@ -159,16 +159,25 @@ fn load_plan(tax: &Taxonomy, path: &Path) -> Result<Plan> {
     Ok(plan)
 }
 
+/// Read, parse, validate and upsert one plan file. Returns the plan id, or
+/// `None` when `path` is not an existing file (nothing to index).
+pub fn index_file(store: &Store, tax: &Taxonomy, path: &Path) -> Result<Option<String>> {
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let plan = load_plan(tax, path)?;
+    store.upsert_plan(&plan)?;
+    Ok(Some(plan.id))
+}
+
 fn handle_path(store: &Store, tax: &Taxonomy, tx: &broadcast::Sender<LiveEvent>, path: &Path) {
     let emit = |plan_id: String| {
         let _ = tx.send(LiveEvent::PlanChanged { plan_id });
     };
     if path.is_file() {
-        match load_plan(tax, path).and_then(|p| {
-            store.upsert_plan(&p)?;
-            Ok(p.id)
-        }) {
-            Ok(id) => emit(id),
+        match index_file(store, tax, path) {
+            Ok(Some(id)) => emit(id),
+            Ok(None) => {}
             Err(e) => eprintln!("plan-atlas: indexing {}: {e:#}", path.display()),
         }
     } else {

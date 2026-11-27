@@ -1,0 +1,302 @@
+//! REST routes and the SSE stream.
+
+use std::convert::Infallible;
+use std::path::PathBuf;
+use std::time::Duration;
+
+use axum::Json;
+use axum::Router;
+use axum::body::Bytes;
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
+use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::response::{IntoResponse, Response};
+use axum::routing::{get, patch};
+use futures_util::Stream;
+use serde::{Deserialize, Serialize};
+use tokio::sync::broadcast::error::RecvError;
+
+use super::AppState;
+use crate::events::LiveEvent;
+use crate::index::index_file;
+use crate::plan::{Plan, TaskStatus, WriteError, set_task_status, write_atomic};
+use crate::store::{PlanFilter, TaskFilter};
+
+pub(super) fn error_response(status: StatusCode, msg: &str) -> Response {
+    (status, Json(serde_json::json!({ "error": msg }))).into_response()
+}
+
+#[derive(Debug)]
+enum ApiError {
+    BadRequest(String),
+    NotFound,
+    Internal,
+}
+
+impl ApiError {
+    fn internal(e: impl std::fmt::Display) -> Self {
+        eprintln!("plan-atlas: internal error: {e}");
+        ApiError::Internal
+    }
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> Response {
+        match self {
+            ApiError::BadRequest(m) => error_response(StatusCode::BAD_REQUEST, &m),
+            ApiError::NotFound => error_response(StatusCode::NOT_FOUND, "not found"),
+            ApiError::Internal => {
+                error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal error")
+            }
+        }
+    }
+}
+
+type ApiResult<T> = Result<Json<T>, ApiError>;
+
+pub(super) fn router() -> Router<AppState> {
+    Router::new()
+        .route("/api/health", get(health))
+        .route("/api/projects", get(projects))
+        .route("/api/plans", get(plans))
+        .route("/api/plans/{id}", get(plan))
+        .route("/api/plans/{id}/tasks/{task}", patch(patch_task))
+        .route("/api/tasks", get(tasks))
+        .route("/api/topics", get(topics))
+        .route("/api/graph", get(graph))
+        .route("/api/search", get(search))
+        .route("/api/stream", get(stream))
+}
+
+fn valid_id(id: &str) -> bool {
+    (1..=100).contains(&id.len())
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+}
+
+/// Run a blocking store closure off the async runtime.
+async fn blocking<T, F>(f: F) -> Result<T, ApiError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> Result<T, ApiError> + Send + 'static,
+{
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(ApiError::internal)?
+}
+
+async fn health() -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "app": "plan-atlas", "version": env!("CARGO_PKG_VERSION") }))
+}
+
+async fn projects(State(s): State<AppState>) -> ApiResult<Vec<crate::store::ProjectSummary>> {
+    blocking(move || {
+        s.store
+            .list_projects()
+            .map(Json)
+            .map_err(ApiError::internal)
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+struct Filter {
+    project: Option<String>,
+    tag: Option<String>,
+}
+
+async fn plans(
+    State(s): State<AppState>,
+    Query(q): Query<Filter>,
+) -> ApiResult<Vec<crate::store::PlanSummary>> {
+    blocking(move || {
+        let f = PlanFilter {
+            project: q.project,
+            tag: q.tag,
+        };
+        s.store.list_plans(&f).map(Json).map_err(ApiError::internal)
+    })
+    .await
+}
+
+async fn plan(State(s): State<AppState>, Path(id): Path<String>) -> ApiResult<Plan> {
+    if !valid_id(&id) {
+        return Err(ApiError::NotFound);
+    }
+    blocking(move || match s.store.get_plan(&id) {
+        Ok(Some(p)) => Ok(Json(p)),
+        Ok(None) => Err(ApiError::NotFound),
+        Err(e) => Err(ApiError::internal(e)),
+    })
+    .await
+}
+
+async fn tasks(
+    State(s): State<AppState>,
+    Query(q): Query<Filter>,
+) -> ApiResult<Vec<crate::store::TaskRow>> {
+    blocking(move || {
+        let f = TaskFilter {
+            project: q.project,
+            tag: q.tag,
+        };
+        s.store.list_tasks(&f).map(Json).map_err(ApiError::internal)
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+struct TopicQuery {
+    locale: Option<String>,
+}
+
+#[derive(Serialize)]
+struct Topic {
+    tag: String,
+    group: String,
+    label: String,
+    desc: String,
+    plans: u32,
+    tasks: u32,
+}
+
+async fn topics(State(s): State<AppState>, Query(q): Query<TopicQuery>) -> ApiResult<Vec<Topic>> {
+    let vi = q.locale.as_deref() == Some("vi");
+    blocking(move || {
+        let counts = s.store.topics().map_err(ApiError::internal)?;
+        let out = counts
+            .into_iter()
+            .map(|c| match s.tax.tags.get(&c.tag) {
+                Some(info) => Topic {
+                    group: info.group.clone(),
+                    label: if vi { &info.label_vi } else { &info.label_en }.clone(),
+                    desc: if vi { &info.desc_vi } else { &info.desc_en }.clone(),
+                    tag: c.tag,
+                    plans: c.plans,
+                    tasks: c.tasks,
+                },
+                None => Topic {
+                    group: String::new(),
+                    label: c.tag.clone(),
+                    desc: String::new(),
+                    tag: c.tag,
+                    plans: c.plans,
+                    tasks: c.tasks,
+                },
+            })
+            .collect();
+        Ok(Json(out))
+    })
+    .await
+}
+
+async fn graph(State(s): State<AppState>) -> ApiResult<crate::store::Graph> {
+    blocking(move || s.store.graph().map(Json).map_err(ApiError::internal)).await
+}
+
+#[derive(Deserialize)]
+struct SearchQuery {
+    q: Option<String>,
+    limit: Option<usize>,
+}
+
+async fn search(
+    State(s): State<AppState>,
+    Query(q): Query<SearchQuery>,
+) -> ApiResult<crate::store::SearchResults> {
+    let limit = q.limit.unwrap_or(8).clamp(1, 50);
+    let text = q.q.unwrap_or_default();
+    blocking(move || {
+        s.store
+            .search(&text, limit)
+            .map(Json)
+            .map_err(ApiError::internal)
+    })
+    .await
+}
+
+#[derive(Deserialize)]
+struct StatusBody {
+    status: TaskStatus,
+}
+
+/// The plan's source file, only if it resolves to somewhere under `paths.plans`.
+fn safe_plan_path(s: &AppState, plan_id: &str) -> Result<PathBuf, ApiError> {
+    let raw = s
+        .store
+        .find_task_path(plan_id)
+        .map_err(ApiError::internal)?
+        .ok_or(ApiError::NotFound)?;
+    let root = std::fs::canonicalize(&s.paths.plans).map_err(ApiError::internal)?;
+    let path = std::fs::canonicalize(raw).map_err(|_| ApiError::NotFound)?;
+    if path.starts_with(&root) {
+        Ok(path)
+    } else {
+        Err(ApiError::NotFound)
+    }
+}
+
+async fn patch_task(
+    State(s): State<AppState>,
+    Path((plan_id, task_id)): Path<(String, String)>,
+    body: Bytes,
+) -> ApiResult<Plan> {
+    if !valid_id(&plan_id) || !valid_id(&task_id) {
+        return Err(ApiError::NotFound);
+    }
+    let StatusBody { status } = serde_json::from_slice(&body)
+        .map_err(|e| ApiError::BadRequest(format!("invalid body: {e}")))?;
+    let live = s.live.clone();
+    let (pid, tid) = (plan_id.clone(), task_id.clone());
+    let plan = blocking(move || {
+        let path = safe_plan_path(&s, &pid)?;
+        let bytes = std::fs::read(&path).map_err(ApiError::internal)?;
+        let new = match set_task_status(&bytes, &tid, status) {
+            Ok(b) => b,
+            Err(WriteError::TaskNotFound(_)) => return Err(ApiError::NotFound),
+        };
+        write_atomic(&path, &new).map_err(ApiError::internal)?;
+        let id = index_file(&s.store, &s.tax, &path)
+            .map_err(ApiError::internal)?
+            .unwrap_or(pid);
+        match s.store.get_plan(&id) {
+            Ok(Some(p)) => Ok(p),
+            Ok(None) => Err(ApiError::NotFound),
+            Err(e) => Err(ApiError::internal(e)),
+        }
+    })
+    .await?;
+    let _ = live.send(LiveEvent::TaskStatus {
+        plan_id,
+        task_id,
+        status,
+    });
+    Ok(Json(plan))
+}
+
+fn live_type(ev: &LiveEvent) -> &'static str {
+    match ev {
+        LiveEvent::PlanChanged { .. } => "plan_changed",
+        LiveEvent::TaskStatus { .. } => "task_status",
+        LiveEvent::AgentStep { .. } => "agent_step",
+    }
+}
+
+async fn stream(State(s): State<AppState>) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let rx = s.live.subscribe();
+    let events = futures_util::stream::unfold(rx, |mut rx| async move {
+        loop {
+            match rx.recv().await {
+                Ok(ev) => {
+                    let data = serde_json::to_string(&ev).unwrap_or_default();
+                    let event = Event::default().event(live_type(&ev)).data(data);
+                    return Some((Ok(event), rx));
+                }
+                Err(RecvError::Lagged(_)) => continue,
+                Err(RecvError::Closed) => return None,
+            }
+        }
+    });
+    Sse::new(events).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))
+}
