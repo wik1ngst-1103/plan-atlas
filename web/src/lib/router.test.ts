@@ -32,6 +32,10 @@ describe('router', () => {
     expect(formatRoute({ page: 'plan', plan: 'P 1', tab: 'docs', anchor: 'new-file-a-ts' })).toBe(
       '#/plan/P%201/docs/new-file-a-ts',
     );
+    expect(parseRoute('#/plan/P/tasks/x')).toEqual({ page: 'plan', plan: 'P', tab: 'tasks' });
+    expect(formatRoute({ page: 'plan', plan: 'P', tab: 'tasks', anchor: 'x' })).toBe(
+      '#/plan/P/tasks',
+    );
     expect(parseRoute('#/board')).toEqual({ page: 'board' });
     expect(parseRoute('#/map')).toEqual({ page: 'map' });
   });
