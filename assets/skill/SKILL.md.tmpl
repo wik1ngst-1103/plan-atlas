@@ -9,7 +9,11 @@ Plan Atlas is the single store for implementation plans. Use this skill any time
 
 ## Rules
 
-- ALWAYS use the `plan-atlas` MCP tools. Never write plan files yourself (not in the repo, not in `~/.plan-atlas`, not in `~/.claude/plans/`).
+- Tools (all from the `plan-atlas` MCP server): `mcp__plan-atlas__list_plans`, `mcp__plan-atlas__search_plans`, `mcp__plan-atlas__get_plan`, `mcp__plan-atlas__get_taxonomy`, `mcp__plan-atlas__create_plan`, `mcp__plan-atlas__update_plan`, `mcp__plan-atlas__start_task`, `mcp__plan-atlas__complete_task`.
+- These tools may be deferred — load them with ToolSearch first (for example `select:mcp__plan-atlas__create_plan`); deferred is not unavailable.
+- Every plan MUST be registered with `mcp__plan-atlas__create_plan`. Plan Atlas stores its own copy under `~/.plan-atlas`; do not write files there yourself.
+- If the project or another skill needs a plan file in the repo (for example `docs/superpowers/plans/`), write it there too AND register it with `mcp__plan-atlas__create_plan`.
+- Plan mode: while in plan mode, follow plan mode (write the plan file it asks for and call ExitPlanMode). After the plan is approved, call `mcp__plan-atlas__create_plan` with the approved plan before starting work.
 - Before `create_plan`: call `get_taxonomy` (tags must come from it) and `search_plans` with the plan's topic and likely tags. List every relevant plan you find under `related`.
 - Revise an existing plan with `update_plan` (send the full Markdown). Use `list_plans` / `get_plan` to read plans.
 - If a tool returns `warnings`, fix them with `update_plan`.
@@ -36,9 +40,14 @@ related:
 - complexity: 1-5
 - model: haiku | sonnet | opus
 - effort: low | medium | high
-- depends_on: [TASK-000]
+- depends_on: []
 - status: todo
 - tags: [domain/backend]
+<description and acceptance criteria>
+### TASK-002: <name>
+- complexity: 2
+- depends_on: [TASK-001]
+- status: todo
 <description and acceptance criteria>
 ## 05. Risks & Rollback
 ```
@@ -61,10 +70,10 @@ Score every task 1–5. `model`/`effort` may be omitted; they default from compl
 
 ## Executing tasks
 
-1. Right before working on a task, call `start_task` (plan_id, task_id).
-2. When it is finished and verified, call `complete_task`.
-3. If the MCP tools are unavailable, run `plan-atlas task start <PLAN-ID> <TASK-ID>` and `plan-atlas task done <PLAN-ID> <TASK-ID>` instead.
-4. When dispatching a subagent for a task, use that task's model and effort (from `get_plan`: the task's explicit `model`/`effort`, otherwise the complexity default above; a task without complexity counts as 3).
+1. Right before working on a task, call `mcp__plan-atlas__start_task` (plan_id, task_id).
+2. When it is finished and verified, call `mcp__plan-atlas__complete_task`.
+3. Only if the `plan-atlas` MCP server is genuinely not configured (not merely deferred), run `plan-atlas task start <PLAN-ID> <TASK-ID>` and `plan-atlas task done <PLAN-ID> <TASK-ID>` instead.
+4. When dispatching a subagent for a task with the Agent tool, pass the task's model (from `get_plan`: the task's explicit `model`/`effort`, otherwise the complexity default above; a task without complexity counts as 3). Mention the effort in the prompt if the tool has no effort parameter.
 
 Activity of the session and its subagents is captured by hooks automatically; nothing else to do.
 

@@ -242,6 +242,14 @@ fn tools_list_has_all_eight() {
             "tool {} needs a description",
             t["name"]
         );
+        let read_only = ["list_plans", "search_plans", "get_plan", "get_taxonomy"]
+            .contains(&t["name"].as_str().unwrap());
+        let hint = t["annotations"]["readOnlyHint"].as_bool();
+        if read_only {
+            assert_eq!(hint, Some(true), "{} should be read-only", t["name"]);
+        } else {
+            assert_ne!(hint, Some(true), "{} writes", t["name"]);
+        }
     }
 }
 

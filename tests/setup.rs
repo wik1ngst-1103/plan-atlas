@@ -241,6 +241,34 @@ fn skill_contains_taxonomy_tags() {
     }
 }
 
+#[test]
+fn skill_covers_plan_mode_repo_plans_and_deferred_tools() {
+    let skill = render_skill(SKILL_TEMPLATE, &Taxonomy::embedded_default());
+    for tool in [
+        "list_plans",
+        "search_plans",
+        "get_plan",
+        "get_taxonomy",
+        "create_plan",
+        "update_plan",
+        "start_task",
+        "complete_task",
+    ] {
+        let full = format!("mcp__plan-atlas__{tool}");
+        assert!(skill.contains(&full), "skill should name {full}");
+    }
+    assert!(skill.contains("ToolSearch"));
+    assert!(skill.contains("deferred is not unavailable"));
+    assert!(skill.contains("ExitPlanMode"));
+    assert!(skill.contains("write it there too AND register it"));
+    assert!(skill.contains("Mention the effort in the prompt"));
+    assert!(
+        !skill.contains("TASK-000"),
+        "example must not depend on a missing task"
+    );
+    assert!(!skill.contains("not in the repo"));
+}
+
 #[cfg(unix)]
 fn fake_claude(dir: &Path, get_exit: i32) -> (PathBuf, PathBuf) {
     use std::os::unix::fs::PermissionsExt;

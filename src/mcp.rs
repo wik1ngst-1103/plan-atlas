@@ -442,7 +442,8 @@ impl PlanAtlasMcp {
 
     #[tool(
         description = "List indexed plans (id, project, title, tags, created, task and done \
-counts, warning count), optionally for one project."
+counts, warning count), optionally for one project.",
+        annotations(read_only_hint = true)
     )]
     async fn list_plans(
         &self,
@@ -461,7 +462,8 @@ counts, warning count), optionally for one project."
     #[tool(
         description = "Full-text search over all plans and tasks (accent-insensitive). Returns \
 {plans, tasks, topics}. Call this before create_plan to find plans to list under `related`. \
-`tags` keeps only results carrying all the given taxonomy tags."
+`tags` keeps only results carrying all the given taxonomy tags.",
+        annotations(read_only_hint = true)
     )]
     async fn search_plans(
         &self,
@@ -472,7 +474,8 @@ counts, warning count), optionally for one project."
 
     #[tool(
         description = "Get one plan in full: frontmatter fields, sections, tasks (id, name, \
-complexity, model, effort, depends_on, status, tags, body) and structure warnings."
+complexity, model, effort, depends_on, status, tags, body) and structure warnings.",
+        annotations(read_only_hint = true)
     )]
     async fn get_plan(
         &self,
@@ -483,7 +486,8 @@ complexity, model, effort, depends_on, status, tags, body) and structure warning
 
     #[tool(
         description = "List the allowed tags, each with its group and English/Vietnamese label \
-and description. Plan and task tags must come from this list; call it before create_plan."
+and description. Plan and task tags must come from this list; call it before create_plan.",
+        annotations(read_only_hint = true)
     )]
     async fn get_taxonomy(&self) -> Result<CallToolResult, ErrorData> {
         Ok(to_result(Ok(taxonomy(&self.ctx.tax))))
