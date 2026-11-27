@@ -150,3 +150,24 @@ fn serde_shapes() {
     let r = serde_json::to_value(&p.related[0]).unwrap();
     assert_eq!(r["kind"], "depends_on");
 }
+
+#[test]
+fn partially_bad_frontmatter_keeps_good_fields() {
+    let src = "---\nid: 42\nproject: p\ntitle: T\ntags: tech/jwt\nrelated:\n  - { to: A, type: nope }\n  - { to: B, type: extends }\ncreated: 2026-11-20\n---\n## 04. Tasks\n";
+    let p = parse_plan(src.as_bytes(), Path::new("a.md"));
+    assert_eq!(p.id, "42");
+    assert_eq!(p.project, "p");
+    assert_eq!(p.title, "T");
+    assert_eq!(p.created.as_deref(), Some("2026-11-20"));
+    assert_eq!(p.tags, vec!["tech/jwt"]);
+    assert_eq!(p.related.len(), 1);
+    assert_eq!(p.related[0].to, "B");
+    assert!(p.structured);
+    let w: Vec<_> = p
+        .warnings
+        .iter()
+        .filter(|w| w.code == "invalid_frontmatter")
+        .collect();
+    assert_eq!(w.len(), 1);
+    assert!(w[0].message.contains("related"));
+}

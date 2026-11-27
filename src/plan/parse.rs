@@ -1,30 +1,106 @@
 use std::path::Path;
 
 use pulldown_cmark::{Event, HeadingLevel, Options, Parser, Tag, TagEnd};
-use serde::Deserialize;
+use serde_yaml_ng::Value;
 
 use super::model::{
     Effort, Model, Plan, Relation, RelationKind, Section, Task, TaskStatus, Warning,
 };
 use super::slug::slugify;
 
-#[derive(Deserialize)]
 struct Frontmatter {
     id: Option<String>,
     project: Option<String>,
     title: Option<String>,
-    #[serde(default)]
     tags: Vec<String>,
-    #[serde(default)]
-    related: Vec<RelationDto>,
+    related: Vec<Relation>,
     created: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct RelationDto {
-    to: String,
-    #[serde(rename = "type")]
-    kind: RelationKind,
+fn scalar_string(v: &Value) -> Option<String> {
+    match v {
+        Value::String(s) => Some(s.clone()),
+        Value::Number(n) => Some(n.to_string()),
+        _ => None,
+    }
+}
+
+fn parse_kind(s: &str) -> Option<RelationKind> {
+    match s {
+        "depends_on" => Some(RelationKind::DependsOn),
+        "extends" => Some(RelationKind::Extends),
+        "relates_to" => Some(RelationKind::RelatesTo),
+        _ => None,
+    }
+}
+
+/// Lenient extraction: every bad field yields an `invalid_frontmatter` warning
+/// naming it; good fields are kept. Err only for unparseable YAML / non-mapping.
+fn parse_frontmatter(y: &str, warnings: &mut Vec<Warning>) -> Result<Frontmatter, String> {
+    let value: Value = serde_yaml_ng::from_str(y).map_err(|e| e.to_string())?;
+    let Value::Mapping(map) = value else {
+        return Err("frontmatter is not a mapping".to_string());
+    };
+    let mut bad = |field: &str, why: &str| {
+        warnings.push(Warning::new(
+            "invalid_frontmatter",
+            format!("frontmatter field '{field}' ignored: {why}"),
+        ));
+    };
+    let mut fm = Frontmatter {
+        id: None,
+        project: None,
+        title: None,
+        tags: Vec::new(),
+        related: Vec::new(),
+        created: None,
+    };
+    for (k, v) in &map {
+        let Some(key) = k.as_str() else { continue };
+        match key {
+            "id" | "project" | "title" | "created" => match scalar_string(v) {
+                Some(s) => match key {
+                    "id" => fm.id = Some(s),
+                    "project" => fm.project = Some(s),
+                    "title" => fm.title = Some(s),
+                    _ => fm.created = Some(s),
+                },
+                None if v.is_null() => {}
+                None => bad(key, "expected a string"),
+            },
+            "tags" => match v {
+                Value::Null => {}
+                Value::Sequence(items) => {
+                    for it in items {
+                        match scalar_string(it) {
+                            Some(s) => fm.tags.push(s),
+                            None => bad("tags", "item is not a string"),
+                        }
+                    }
+                }
+                other => match scalar_string(other) {
+                    Some(s) => fm.tags.push(s),
+                    None => bad("tags", "expected a list of strings"),
+                },
+            },
+            "related" => match v {
+                Value::Null => {}
+                Value::Sequence(items) => {
+                    for it in items {
+                        let to = it.get("to").and_then(scalar_string);
+                        let kind = it.get("type").and_then(Value::as_str).and_then(parse_kind);
+                        match (to, kind) {
+                            (Some(to), Some(kind)) => fm.related.push(Relation { to, kind }),
+                            _ => bad("related", "item needs 'to' and a valid 'type'"),
+                        }
+                    }
+                }
+                _ => bad("related", "expected a list"),
+            },
+            _ => {}
+        }
+    }
+    Ok(fm)
 }
 
 struct Heading {
@@ -66,7 +142,7 @@ pub fn parse_plan(bytes: &[u8], path: &Path) -> Plan {
             ));
             None
         }
-        Some(y) => match serde_yaml_ng::from_str::<Frontmatter>(y) {
+        Some(y) => match parse_frontmatter(y, &mut warnings) {
             Ok(f) => Some(f),
             Err(e) => {
                 warnings.push(Warning::new(
@@ -96,13 +172,7 @@ pub fn parse_plan(bytes: &[u8], path: &Path) -> Plan {
             f.project.unwrap_or_else(|| "unsorted".to_string()),
             f.title.or(h1).unwrap_or_else(|| stem.clone()),
             f.tags,
-            f.related
-                .into_iter()
-                .map(|r| Relation {
-                    to: r.to,
-                    kind: r.kind,
-                })
-                .collect(),
+            f.related,
             f.created,
         ),
         None => (

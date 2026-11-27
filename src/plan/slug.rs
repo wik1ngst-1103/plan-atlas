@@ -1,9 +1,19 @@
-/// Lowercase ASCII slug: Vietnamese diacritics stripped (đ -> d), any run of
-/// non-alphanumerics collapsed into a single '-', trimmed of leading/trailing '-'.
+use unicode_normalization::UnicodeNormalization;
+
+/// Lowercase ASCII slug: text is NFD-decomposed and combining marks dropped
+/// (so NFC and NFD input agree), đ -> d, any run of non-alphanumerics collapsed
+/// into a single '-', trimmed of leading/trailing '-'.
 pub fn slugify(s: &str) -> String {
     let mut out = String::new();
     let mut pending_dash = false;
-    for c in s.chars().map(fold_char) {
+    for c in s.nfd() {
+        if ('\u{0300}'..='\u{036f}').contains(&c) {
+            continue;
+        }
+        let c = match c {
+            'đ' | 'Đ' => 'd',
+            other => other,
+        };
         if c.is_ascii_alphanumeric() {
             if pending_dash && !out.is_empty() {
                 out.push('-');
@@ -17,31 +27,6 @@ pub fn slugify(s: &str) -> String {
     out
 }
 
-/// Map a char to its base ASCII letter(s) when it is a Latin letter with diacritics.
-fn fold_char(c: char) -> char {
-    match c {
-        'à' | 'á' | 'ạ' | 'ả' | 'ã' | 'â' | 'ầ' | 'ấ' | 'ậ' | 'ẩ' | 'ẫ' | 'ă' | 'ằ' | 'ắ' | 'ặ'
-        | 'ẳ' | 'ẵ' => 'a',
-        'À' | 'Á' | 'Ạ' | 'Ả' | 'Ã' | 'Â' | 'Ầ' | 'Ấ' | 'Ậ' | 'Ẩ' | 'Ẫ' | 'Ă' | 'Ằ' | 'Ắ' | 'Ặ'
-        | 'Ẳ' | 'Ẵ' => 'A',
-        'è' | 'é' | 'ẹ' | 'ẻ' | 'ẽ' | 'ê' | 'ề' | 'ế' | 'ệ' | 'ể' | 'ễ' => 'e',
-        'È' | 'É' | 'Ẹ' | 'Ẻ' | 'Ẽ' | 'Ê' | 'Ề' | 'Ế' | 'Ệ' | 'Ể' | 'Ễ' => 'E',
-        'ì' | 'í' | 'ị' | 'ỉ' | 'ĩ' => 'i',
-        'Ì' | 'Í' | 'Ị' | 'Ỉ' | 'Ĩ' => 'I',
-        'ò' | 'ó' | 'ọ' | 'ỏ' | 'õ' | 'ô' | 'ồ' | 'ố' | 'ộ' | 'ổ' | 'ỗ' | 'ơ' | 'ờ' | 'ớ' | 'ợ'
-        | 'ở' | 'ỡ' => 'o',
-        'Ò' | 'Ó' | 'Ọ' | 'Ỏ' | 'Õ' | 'Ô' | 'Ồ' | 'Ố' | 'Ộ' | 'Ổ' | 'Ỗ' | 'Ơ' | 'Ờ' | 'Ớ' | 'Ợ'
-        | 'Ở' | 'Ỡ' => 'O',
-        'ù' | 'ú' | 'ụ' | 'ủ' | 'ũ' | 'ư' | 'ừ' | 'ứ' | 'ự' | 'ử' | 'ữ' => 'u',
-        'Ù' | 'Ú' | 'Ụ' | 'Ủ' | 'Ũ' | 'Ư' | 'Ừ' | 'Ứ' | 'Ự' | 'Ử' | 'Ữ' => 'U',
-        'ỳ' | 'ý' | 'ỵ' | 'ỷ' | 'ỹ' => 'y',
-        'Ỳ' | 'Ý' | 'Ỵ' | 'Ỷ' | 'Ỹ' => 'Y',
-        'đ' => 'd',
-        'Đ' => 'D',
-        other => other,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::slugify;
@@ -51,5 +36,20 @@ mod tests {
         assert_eq!(slugify("01. Overview"), "01-overview");
         assert_eq!(slugify("Thiết kế đăng nhập!"), "thiet-ke-dang-nhap");
         assert_eq!(slugify("  --A & B--  "), "a-b");
+    }
+
+    #[test]
+    fn slug_nfd_equals_nfc() {
+        use unicode_normalization::UnicodeNormalization;
+        let nfc: String = "Thiết kế đăng nhập".nfc().collect();
+        let nfd: String = "Thiết kế đăng nhập".nfd().collect();
+        assert_ne!(nfc, nfd);
+        assert_eq!(slugify(&nfc), "thiet-ke-dang-nhap");
+        assert_eq!(slugify(&nfd), "thiet-ke-dang-nhap");
+    }
+
+    #[test]
+    fn slug_latin_diacritics() {
+        assert_eq!(slugify("café"), "cafe");
     }
 }
