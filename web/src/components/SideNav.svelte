@@ -3,6 +3,7 @@
   import type { ProjectSummary } from '../lib/generated/ProjectSummary';
   import { t } from '../lib/i18n';
   import { onEvent } from '../lib/live';
+  import { projectColor as color } from '../lib/projectColor';
   import { route } from '../lib/router';
 
   let projects = $state<ProjectSummary[]>([]);
@@ -17,10 +18,6 @@
     const offs = [onEvent('plan_changed', load), onEvent('index_ready', load)];
     return () => offs.forEach((off) => off());
   });
-
-  const COLORS = ['#4c6ef5', '#12b886', '#f59f00', '#e64980', '#7950f2', '#15aabf'];
-  const color = (name: string) =>
-    COLORS[[...name].reduce((h, c) => h + c.charCodeAt(0), 0) % COLORS.length];
 </script>
 
 <aside class="side" aria-label={$t('nav.menu')}>

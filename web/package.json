@@ -12,6 +12,8 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "dompurify": "^3.5.0",
+    "marked": "^15.0.12",
     "svelte": "^5.59.2"
   },
   "devDependencies": {

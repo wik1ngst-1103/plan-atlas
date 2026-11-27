@@ -57,6 +57,9 @@
     flex: none;
     width: min(440px, 42vw);
   }
+  .search-slot:empty {
+    display: none;
+  }
   .livepill {
     display: flex;
     align-items: center;

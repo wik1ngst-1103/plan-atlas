@@ -51,6 +51,7 @@ let source: EventSource | undefined;
 /** Open the single SSE connection (idempotent). EventSource reconnects by itself. */
 export function startLive() {
   if (source) return;
+  void refreshActivity(); // don't wait for the stream to open (proxies may hold it)
   source = new EventSource('/api/stream');
   source.onopen = () => {
     connected.set(true);

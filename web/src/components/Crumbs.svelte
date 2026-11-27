@@ -1,15 +1,18 @@
 <script lang="ts">
-  import { planProject } from '../lib/planProject';
+  import { planProject, planTitle } from '../lib/planProject';
   import { t } from '../lib/i18n';
   import { route } from '../lib/router';
 
   let project = $state<string | null>(null);
+  let title = $state<string | null>(null);
   $effect(() => {
     const r = $route;
     project = null;
+    title = null;
     if (r.page !== 'plan') return;
     let live = true;
     void planProject(r.plan).then((p) => live && (project = p));
+    void planTitle(r.plan).then((tt) => live && (title = tt));
     return () => (live = false);
   });
 </script>
@@ -26,7 +29,7 @@
         <a href="#/project/{encodeURIComponent(project)}">
           {$t('nav.project', { name: project })}
         </a><span class="sep">›</span>
-      {/if}<b>{$route.plan}</b>
+      {/if}<b>📄 {title ?? $route.plan}</b>
     {:else if $route.page === 'board'}
       <b>{$t('nav.board')}</b>
     {:else}

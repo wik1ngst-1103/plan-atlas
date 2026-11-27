@@ -26,6 +26,25 @@ describe('locale keys', () => {
     const dynamic = [
       ...['task', 'topic', 'plan', 'activity'].map((x) => `drawer.${x}`),
       ...['todo', 'in_progress', 'review', 'done'].map((x) => `status.${x}`),
+      ...['todo', 'in_progress', 'done'].map((x) => `planStatus.${x}`),
+      ...['main', 'Explore', 'general-purpose', 'Plan', 'implementer', 'other'].map(
+        (x) => `role.${x}`,
+      ),
+      ...['depends_on', 'extends', 'relates_to'].flatMap((x) => [`rel.out.${x}`, `rel.in.${x}`]),
+      'plan.pageLead',
+      'plan.pageLeadNoTasks',
+      ...[1, 2, 3, 4, 5].map((x) => `diff.${x}`),
+      ...[1, 2, 3, 4, 5].map((x) => `doc.s0${x}`),
+      ...['haiku', 'sonnet', 'opus'].map((x) => `model.${x}`),
+      ...[
+        'non_utf8',
+        'missing_frontmatter',
+        'invalid_frontmatter',
+        'invalid_task_metadata',
+        'duplicate_task_id',
+        'unknown_tag',
+        'missing_section',
+      ].map((x) => `warn.${x}`),
     ];
     for (const k of dynamic) {
       expect(k in en, `en ${k}`).toBe(true);
