@@ -33,13 +33,13 @@ Claude Code ──(hooks)─────── plan-atlas hook ─┼──► c
                                                                    trình duyệt của bạn
 ```
 
-- **Một file chạy duy nhất**, viết bằng Rust: web server, MCP server, xử lý hook và trình cài đặt gói trong một file khoảng 15 MB. Mục tiêu RAM khi rảnh: **≤ 40 MB** với 1.000 plan.
+- **Một file chạy duy nhất**, viết bằng Rust: web server, MCP server, xử lý hook và trình cài đặt gói trong một file khoảng 9 MB. Mục tiêu RAM khi rảnh: **≤ 40 MB** với 1.000 plan.
 - **File Markdown là nguồn sự thật.** SQLite chỉ là chỉ mục — xoá đi sẽ tự dựng lại.
 - **Chỉ chạy cục bộ.** Server chỉ nghe ở `127.0.0.1`, không gửi dữ liệu đi đâu.
 
 ## Cài đặt
 
-> Chưa phát hành bản build sẵn. Các lệnh dưới đây dùng được từ v0.1.0.
+> Bản phát hành đầu tiên (v0.1.0) đang chờ: các lệnh dưới đây sẽ dùng được sau khi phát hành.
 
 **macOS / Linux**
 ```sh
@@ -55,8 +55,9 @@ powershell -ExecutionPolicy Bypass -c "irm https://github.com/WiK1ngST/plan-atla
 ```sh
 brew install WiK1ngST/tap/plan-atlas   # Homebrew
 npx plan-atlas                         # npm, không cần cài toàn cục
-cargo install plan-atlas               # từ mã nguồn (cần Rust 1.85+)
 ```
+
+Từ mã nguồn (cần Rust 1.89+ và Node 22): `cd web && npm ci && npm run build && cd .. && cargo build --release` — giao diện web được nhúng vào file chạy, xem [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Sử dụng
 

@@ -32,13 +32,13 @@ Claude Code ──(hooks)─────── plan-atlas hook ─┼──► S
                                                                   your browser
 ```
 
-- **One binary**, written in Rust: web server, MCP server, hook handler and installer in a single ~15 MB file. Idle memory target: **≤ 40 MB** with 1,000 plans.
+- **One binary**, written in Rust: web server, MCP server, hook handler and installer in a single ~9 MB file. Idle memory target: **≤ 40 MB** with 1,000 plans.
 - **Markdown files are the source of truth.** The SQLite database is only an index — delete it and it rebuilds.
 - **Local only.** The server listens on `127.0.0.1`, nothing is sent anywhere.
 
 ## Install
 
-> Release binaries are not published yet. These commands will work from v0.1.0.
+> The first release (v0.1.0) is pending: these commands start working once it is published.
 
 **macOS / Linux**
 ```sh
@@ -53,9 +53,10 @@ powershell -ExecutionPolicy Bypass -c "irm https://github.com/WiK1ngST/plan-atla
 **Other options**
 ```sh
 brew install WiK1ngST/tap/plan-atlas   # Homebrew
-npx plan-atlas                      # npm, no global install
-cargo install plan-atlas            # from source (needs Rust 1.85+)
+npx plan-atlas                         # npm, no global install
 ```
+
+From source (needs Rust 1.89+ and Node 22): `cd web && npm ci && npm run build && cd .. && cargo build --release` — the web UI is embedded into the binary, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Use
 

@@ -13,7 +13,7 @@ Thanks for helping! This guide gets you from clone to merged pull request.
 
 Requirements:
 
-- **Rust 1.85+** via [rustup](https://rustup.rs). `rust-toolchain.toml` pins the exact version.
+- **Rust 1.89+** via [rustup](https://rustup.rs). `rust-toolchain.toml` pins the exact version.
 - **Node.js 22+**, needed only to build the web UI.
 - Git.
 

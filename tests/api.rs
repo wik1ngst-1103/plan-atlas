@@ -466,7 +466,7 @@ async fn activity_and_task_log_endpoints() {
 }
 
 #[tokio::test]
-async fn non_api_get_serves_placeholder_page() {
+async fn non_api_get_serves_spa_and_guards_hold() {
     let e = env();
     let resp = e
         .app
@@ -476,7 +476,7 @@ async fn non_api_get_serves_placeholder_page() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     let bytes = resp.into_body().collect().await.unwrap().to_bytes();
-    assert!(String::from_utf8_lossy(&bytes).contains("the web UI has not been built yet"));
+    assert!(String::from_utf8_lossy(&bytes).contains("<title>Plan Atlas</title>"));
     let (status, _) = call(&e.app, req("GET", "/api/nope").body(Body::empty()).unwrap()).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let bad_host = Request::builder()
