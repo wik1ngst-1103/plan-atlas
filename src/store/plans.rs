@@ -128,8 +128,50 @@ impl Store {
     /// Insert or replace a plan. No-op when id, hash and path are unchanged.
     pub fn upsert_plan(&self, plan: &Plan) -> Result<()> {
         let conn = self.conn();
+        let tx = conn.unchecked_transaction()?;
+        self.upsert_in(&tx, plan)?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Upsert many plans inside one transaction (all-or-nothing).
+    pub fn upsert_plans(&self, plans: &[Plan]) -> Result<()> {
+        let conn = self.conn();
+        let tx = conn.unchecked_transaction()?;
+        for plan in plans {
+            self.upsert_in(&tx, plan)?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Source paths of every indexed plan.
+    pub fn all_paths(&self) -> Result<Vec<PathBuf>> {
+        let conn = self.conn();
+        let mut stmt = conn.prepare("SELECT path FROM plans")?;
+        let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+        Ok(rows
+            .collect::<std::result::Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(PathBuf::from)
+            .collect())
+    }
+
+    /// Id of the plan indexed at `path`, if any.
+    pub fn plan_id_at_path(&self, path: &Path) -> Result<Option<String>> {
+        Ok(self
+            .conn()
+            .query_row(
+                "SELECT id FROM plans WHERE path = ?1",
+                [path_str(path)],
+                |r| r.get(0),
+            )
+            .optional()?)
+    }
+
+    fn upsert_in(&self, tx: &Connection, plan: &Plan) -> Result<()> {
         let path = path_str(&plan.source_path);
-        let existing: Option<(String, String)> = conn
+        let existing: Option<(String, String)> = tx
             .query_row(
                 "SELECT hash, path FROM plans WHERE id = ?1",
                 [&plan.id],
@@ -143,7 +185,6 @@ impl Store {
             return Ok(());
         }
 
-        let tx = conn.unchecked_transaction()?;
         // a different plan previously at this path (e.g. id edited in place)
         let stale: Option<String> = tx
             .query_row("SELECT id FROM plans WHERE path = ?1", [&path], |r| {
@@ -151,10 +192,10 @@ impl Store {
             })
             .optional()?;
         if let Some(stale) = stale {
-            delete_plan(&tx, &stale)?;
+            delete_plan(tx, &stale)?;
         }
         if existing.is_some() {
-            delete_plan(&tx, &plan.id)?;
+            delete_plan(tx, &plan.id)?;
         }
 
         tx.execute(
@@ -196,7 +237,7 @@ impl Store {
             "INSERT INTO search_fts (kind, ref, title, body) VALUES ('plan', ?1, ?2, ?3)",
             params![plan.id, super::fold(&plan.title), super::fold(&body)],
         )?;
-        record_fts_row(&tx, &plan.id)?;
+        record_fts_row(tx, &plan.id)?;
 
         for (pos, task) in plan.tasks.iter().enumerate() {
             tx.execute(
@@ -229,9 +270,8 @@ impl Store {
                     super::fold(&body)
                 ],
             )?;
-            record_fts_row(&tx, &plan.id)?;
+            record_fts_row(tx, &plan.id)?;
         }
-        tx.commit()?;
         Ok(())
     }
 
