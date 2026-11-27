@@ -2,7 +2,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use plan_atlas::config::Paths;
-use plan_atlas::import::{ImportReport, import_claude_plans, infer_project};
+use plan_atlas::import::{
+    ImportReport, import_claude_plans, infer_project, infer_projects, infer_projects_with,
+};
 use plan_atlas::plan::parse_plan;
 
 fn copy_dir(from: &Path, to: &Path) {
@@ -195,4 +197,77 @@ fn invalid_source_frontmatter_not_duplicated() {
             .unwrap()
             .contains("unclosed")
     );
+}
+
+/// `n` transcripts in separate project dirs; transcript `i` mentions
+/// `plan-{i}.md` from repo `repo-{i}`. Older index → older mtime.
+fn many_transcripts(n: usize) -> (tempfile::TempDir, PathBuf) {
+    let tmp = tempfile::tempdir().unwrap();
+    let claude = tmp.path().join("claude");
+    for i in 0..n {
+        let repo = tmp.path().join(format!("work/repo-{i}"));
+        fs::create_dir_all(repo.join(".git")).unwrap();
+        let dir = claude.join(format!("projects/-work-repo-{i}"));
+        fs::create_dir_all(&dir).unwrap();
+        let mut text = String::new();
+        text.push_str(&format!(
+            "{{\"cwd\":\"{}\",\"type\":\"user\"}}\n",
+            repo.display()
+        ));
+        for _ in 0..50 {
+            text.push_str("{\"type\":\"assistant\",\"message\":\"filler line\"}\n");
+        }
+        text.push_str(&format!(
+            "{{\"type\":\"tool\",\"path\":\"/home/u/.claude/plans/plan-{i}.md\"}}\n"
+        ));
+        let f = dir.join("s.jsonl");
+        fs::write(&f, text).unwrap();
+        let t = std::time::SystemTime::UNIX_EPOCH
+            + std::time::Duration::from_secs(1_000_000 + i as u64);
+        fs::File::options()
+            .write(true)
+            .open(&f)
+            .unwrap()
+            .set_modified(t)
+            .unwrap();
+    }
+    (tmp, claude)
+}
+
+#[test]
+fn batch_inference_reads_each_transcript_at_most_once() {
+    let n = 30;
+    let (_tmp, claude) = many_transcripts(n);
+    let names: Vec<String> = (0..n).map(|i| format!("plan-{i}.md")).collect();
+    let mut opens: Vec<PathBuf> = Vec::new();
+    let found = infer_projects_with(&names, &claude, |p| {
+        opens.push(p.to_path_buf());
+        fs::File::open(p).ok().map(std::io::BufReader::new)
+    });
+    assert_eq!(found.len(), n);
+    for i in 0..n {
+        assert_eq!(found[&format!("plan-{i}.md")], format!("repo-{i}"));
+    }
+    let mut unique = opens.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(unique.len(), opens.len(), "a transcript was read twice");
+    assert_eq!(opens.len(), n);
+}
+
+#[test]
+fn batch_inference_stops_when_all_resolved_newest_first() {
+    let n = 10;
+    let (_tmp, claude) = many_transcripts(n);
+    let mut opens = 0;
+    let found = infer_projects_with(&["plan-9.md".to_string()], &claude, |p| {
+        opens += 1;
+        fs::File::open(p).ok().map(std::io::BufReader::new)
+    });
+    assert_eq!(found["plan-9.md"], "repo-9");
+    assert_eq!(
+        opens, 1,
+        "newest transcript resolves it; nothing else is read"
+    );
+    assert!(infer_projects(&[], &claude).is_empty());
 }

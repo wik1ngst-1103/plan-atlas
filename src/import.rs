@@ -77,44 +77,84 @@ fn frontmatter_of(path: &Path) -> Option<Mapping> {
 /// Find which project produced `plan_file_name` by scanning Claude Code
 /// transcripts under `claude_home/projects/*/*.jsonl`.
 pub fn infer_project(plan_file_name: &str, claude_home: &Path) -> Option<String> {
-    let mut dirs: Vec<_> = fs::read_dir(claude_home.join("projects"))
-        .ok()?
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.is_dir())
-        .collect();
-    dirs.sort();
-    for dir in dirs {
-        let Ok(rd) = fs::read_dir(&dir) else { continue };
-        let mut files: Vec<_> = rd
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| p.extension().is_some_and(|e| e == "jsonl"))
-            .collect();
-        files.sort();
-        for file in files {
-            if let Some(cwd) = cwd_for_match(&file, plan_file_name)
-                && let Some(name) = project_root_name(Path::new(&cwd))
-            {
-                return Some(name);
-            }
-        }
-    }
-    None
+    infer_projects(&[plan_file_name.to_string()], claude_home).remove(plan_file_name)
 }
 
-/// First line mentioning `needle` decides: its `cwd`, else the nearest earlier one.
-fn cwd_for_match(file: &Path, needle: &str) -> Option<String> {
-    if fs::metadata(file).ok()?.len() > MAX_TRANSCRIPT_BYTES {
-        return None;
+/// [`infer_projects_with`] reading transcripts from disk.
+pub fn infer_projects(names: &[String], claude_home: &Path) -> HashMap<String, String> {
+    infer_projects_with(names, claude_home, |p| {
+        fs::File::open(p).ok().map(BufReader::new)
+    })
+}
+
+/// Map plan file names to projects in a single pass over the transcripts
+/// under `claude_home/projects/*/*.jsonl`, newest first: each transcript is
+/// opened at most once and the pass stops as soon as every name is resolved.
+/// Transcripts over 50 MB are skipped. `open` reads one transcript.
+pub fn infer_projects_with<R: BufRead>(
+    names: &[String],
+    claude_home: &Path,
+    mut open: impl FnMut(&Path) -> Option<R>,
+) -> HashMap<String, String> {
+    let mut found = HashMap::new();
+    let mut pending: Vec<&str> = names.iter().map(String::as_str).collect();
+    pending.sort_unstable();
+    pending.dedup();
+    if pending.is_empty() {
+        return found;
     }
-    let mut reader = BufReader::new(fs::File::open(file).ok()?);
+    for file in transcripts_newest_first(claude_home) {
+        let Some(reader) = open(&file) else { continue };
+        for (name, cwd) in cwds_for_matches(reader, &pending) {
+            if let Some(project) = project_root_name(Path::new(&cwd)) {
+                found.insert(name.to_string(), project);
+            }
+        }
+        pending.retain(|n| !found.contains_key(*n));
+        if pending.is_empty() {
+            break;
+        }
+    }
+    found
+}
+
+/// `*.jsonl` under `claude_home/projects/*/` of at most 50 MB, newest first.
+fn transcripts_newest_first(claude_home: &Path) -> Vec<PathBuf> {
+    let Ok(rd) = fs::read_dir(claude_home.join("projects")) else {
+        return Vec::new();
+    };
+    let mut files: Vec<(std::time::SystemTime, PathBuf)> = Vec::new();
+    for dir in rd.flatten().map(|e| e.path()).filter(|p| p.is_dir()) {
+        let Ok(rd) = fs::read_dir(&dir) else { continue };
+        for e in rd.flatten() {
+            let path = e.path();
+            if path.extension().is_none_or(|x| x != "jsonl") {
+                continue;
+            }
+            let Ok(meta) = e.metadata() else { continue };
+            if meta.len() > MAX_TRANSCRIPT_BYTES {
+                continue;
+            }
+            let mtime = meta.modified().unwrap_or(std::time::UNIX_EPOCH);
+            files.push((mtime, path));
+        }
+    }
+    files.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    files.into_iter().map(|(_, p)| p).collect()
+}
+
+/// For each needle: the first line mentioning it decides, using that line's
+/// `cwd`, else the nearest earlier one. Needles without a cwd are left out.
+fn cwds_for_matches<'a>(mut reader: impl BufRead, needles: &[&'a str]) -> Vec<(&'a str, String)> {
+    let mut out = Vec::new();
+    let mut open: Vec<&str> = needles.to_vec();
     let mut last_cwd: Option<String> = None;
     let mut buf = Vec::new();
-    loop {
+    while !open.is_empty() {
         buf.clear();
-        if reader.read_until(b'\n', &mut buf).ok()? == 0 {
-            return None;
+        match reader.read_until(b'\n', &mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(_) => {}
         }
         let line = String::from_utf8_lossy(&buf);
         let cwd = if line.contains("\"cwd\"") {
@@ -124,13 +164,20 @@ fn cwd_for_match(file: &Path, needle: &str) -> Option<String> {
         } else {
             None
         };
-        if line.contains(needle) {
-            return cwd.or(last_cwd);
-        }
+        open.retain(|n| {
+            if !line.contains(n) {
+                return true;
+            }
+            if let Some(c) = cwd.as_ref().or(last_cwd.as_ref()) {
+                out.push((*n, c.clone()));
+            }
+            false
+        });
         if cwd.is_some() {
             last_cwd = cwd;
         }
     }
+    out
 }
 
 struct Known {
@@ -189,13 +236,18 @@ pub fn import_claude_plans(claude_home: &Path, paths: &Paths) -> Result<ImportRe
         }
     }
     let mut ids_by_dir: HashMap<PathBuf, Vec<String>> = HashMap::new();
+    let new_names: Vec<String> = sources
+        .iter()
+        .filter(|src| !known.contains_key(&source_key(src)))
+        .filter_map(|src| Some(src.file_name()?.to_string_lossy().into_owned()))
+        .collect();
+    let inferred = infer_projects(&new_names, claude_home);
 
     for src in sources {
         let res = (|| -> Result<()> {
             let bytes = fs::read(&src).with_context(|| format!("reading {}", src.display()))?;
             let hash = blake3::hash(&bytes).to_hex().to_string();
-            let abs = fs::canonicalize(&src).unwrap_or_else(|_| src.clone());
-            let from = abs.to_string_lossy().to_string();
+            let from = source_key(&src);
             let text = String::from_utf8_lossy(&bytes).into_owned();
             let (fm, body, invalid) = split_frontmatter_full(&text);
             let mut fm = fm;
@@ -214,9 +266,8 @@ pub fn import_claude_plans(claude_home: &Path, paths: &Paths) -> Result<ImportRe
                 }
                 None => {
                     let name = src.file_name().unwrap().to_string_lossy().to_string();
-                    let inferred = infer_project(&name, claude_home);
-                    let (dir, project, uns) = match inferred {
-                        Some(p) => (paths.plans.join(&p), p, false),
+                    let (dir, project, uns) = match inferred.get(&name) {
+                        Some(p) => (paths.plans.join(p), p.clone(), false),
                         None => (paths.unsorted.clone(), UNSORTED.to_string(), true),
                     };
                     fs::create_dir_all(&dir)?;
@@ -274,6 +325,12 @@ pub fn import_claude_plans(claude_home: &Path, paths: &Paths) -> Result<ImportRe
         }
     }
     Ok(report)
+}
+
+/// Canonical source path, as recorded in `imported_from`.
+fn source_key(src: &Path) -> String {
+    let abs = fs::canonicalize(src).unwrap_or_else(|_| src.to_path_buf());
+    abs.to_string_lossy().to_string()
 }
 
 /// `name`, or `stem-2.ext`, `stem-3.ext`... when taken by another file.

@@ -1,6 +1,7 @@
 //! The default command: one instance per machine, start the server, open the
-//! browser. The initial import and scan run in the background so the browser
-//! opens right away; `LiveEvent::IndexReady` tells the UI when they finish.
+//! browser. The initial scan and import run in the background so the browser
+//! opens right away; `LiveEvent::IndexReady` tells the UI when the scan (and
+//! again when a non-empty import) finishes.
 
 use std::net::{Ipv4Addr, SocketAddr};
 use std::sync::Arc;
@@ -166,22 +167,36 @@ fn initial_index(
     if let Err(e) = store.prune_events(PRUNE_DAYS) {
         eprintln!("plan-atlas: warning: pruning old events failed: {e:#}");
     }
-    if let Some(claude_home) = setup::claude_home() {
-        match import::import_claude_plans(&claude_home, &paths) {
-            Ok(r) if r.imported > 0 || r.failed > 0 => eprintln!(
-                "plan-atlas: imported {} plan(s) from {} ({} failed)",
-                r.imported,
-                claude_home.join("plans").display(),
-                r.failed
-            ),
-            Ok(_) => {}
-            Err(e) => eprintln!("plan-atlas: warning: import failed: {e:#}"),
+    // Existing plans first, so the UI is populated before any import work.
+    let indexer = Indexer::new(paths.clone(), store, tax);
+    let scan = |indexer: &Indexer| {
+        if let Err(e) = indexer.full_scan() {
+            eprintln!("plan-atlas: warning: initial scan failed: {e:#}");
         }
+        let _ = live.send(LiveEvent::IndexReady);
+    };
+    scan(&indexer);
+    let Some(claude_home) = setup::claude_home() else {
+        return;
+    };
+    match import::import_claude_plans(&claude_home, &paths) {
+        Ok(r) => {
+            if r.imported > 0 || r.failed > 0 {
+                eprintln!(
+                    "plan-atlas: imported {} plan(s) from {} ({} failed)",
+                    r.imported,
+                    claude_home.join("plans").display(),
+                    r.failed
+                );
+            }
+            // The watcher also sees the new files; rescanning keeps the
+            // index right even when watching is unavailable.
+            if r.imported > 0 {
+                scan(&indexer);
+            }
+        }
+        Err(e) => eprintln!("plan-atlas: warning: import failed: {e:#}"),
     }
-    if let Err(e) = Indexer::new(paths, store, tax).full_scan() {
-        eprintln!("plan-atlas: warning: initial scan failed: {e:#}");
-    }
-    let _ = live.send(LiveEvent::IndexReady);
 }
 
 /// Run the launcher until Ctrl+C.
