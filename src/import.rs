@@ -16,7 +16,7 @@ use ts_rs::TS;
 
 use crate::config::Paths;
 use crate::ops::{lock_dir, try_lock_dir};
-use crate::plan::slug::slugify;
+use crate::plan::slug::{slugify, truncate_slug};
 use crate::plan::{next_plan_id, write_atomic};
 use crate::project::{project_root_name, repo_project_name, sanitize_project};
 
@@ -294,6 +294,9 @@ fn project_ids(dir: &Path) -> Vec<String> {
 /// Most Markdown files one `import_paths` call collects from directories.
 pub const MAX_IMPORT_FILES: usize = 2000;
 
+/// Longest file name stem (slug) for an uploaded plan's copy.
+const MAX_UPLOAD_NAME_LEN: usize = 80;
+
 /// Directory names never descended into (besides hidden ones).
 const SKIP_DIRS: [&str; 2] = ["node_modules", "target"];
 
@@ -315,13 +318,21 @@ struct Source<'s> {
     bytes: &'s [u8],
     /// Project directory for a new copy (already sanitized).
     project: String,
+    /// When the same source was imported before with other content: update
+    /// that copy (disk files, whose path identifies them) or add a new plan
+    /// (uploads, whose relative names are not unique).
+    update_in_place: bool,
 }
 
 /// Shared state of one import run: what the store already holds, ids per
 /// directory, and the per-project locks held while writing.
 struct Importer<'a> {
     paths: &'a Paths,
-    known: HashMap<String, Known>,
+    /// Copies in the store per `imported_from`.
+    known: HashMap<String, Vec<Known>>,
+    /// Content hashes of every plan file in the store, so a store file fed
+    /// back in (e.g. by uploading the store's own folder) is skipped.
+    store_hashes: HashSet<String>,
     ids_by_dir: HashMap<PathBuf, Vec<String>>,
     /// `ops::lock_dir` locks, kept until the run ends so cached ids stay valid.
     locks: HashMap<PathBuf, fs::File>,
@@ -330,22 +341,26 @@ struct Importer<'a> {
 
 impl<'a> Importer<'a> {
     fn new(paths: &'a Paths) -> Self {
-        let mut known = HashMap::new();
+        let mut known: HashMap<String, Vec<Known>> = HashMap::new();
+        let mut store_hashes = HashSet::new();
         let mut existing = Vec::new();
         walk_md(&paths.plans, &mut existing);
         for p in existing {
-            if let Some(m) = frontmatter_of(&p)
+            let Ok(bytes) = fs::read(&p) else { continue };
+            store_hashes.insert(blake3::hash(&bytes).to_hex().to_string());
+            if let Some(m) = split_frontmatter(&String::from_utf8_lossy(&bytes)).0
                 && let (Some(from), Some(hash)) = (
                     str_field(&m, "imported_from"),
                     str_field(&m, "imported_hash"),
                 )
             {
-                known.insert(from, Known { hash, dest: p });
+                known.entry(from).or_default().push(Known { hash, dest: p });
             }
         }
         Importer {
             paths,
             known,
+            store_hashes,
             ids_by_dir: HashMap::new(),
             locks: HashMap::new(),
             report: ImportReport::default(),
@@ -384,14 +399,15 @@ impl<'a> Importer<'a> {
     /// imported before, an in-place update (same id) when it changed.
     fn import_one(&mut self, src: Source<'_>) -> Result<()> {
         let hash = blake3::hash(src.bytes).to_hex().to_string();
-        let previous = match self.known.get(&src.from) {
-            Some(k) if k.hash == hash => {
-                self.report.skipped += 1;
-                return Ok(());
-            }
-            Some(k) => Some(k.dest.clone()),
-            None => None,
-        };
+        let copies = self.known.get(&src.from).map(Vec::as_slice).unwrap_or(&[]);
+        if copies.iter().any(|k| k.hash == hash) || self.store_hashes.contains(&hash) {
+            self.report.skipped += 1;
+            return Ok(());
+        }
+        let previous = copies
+            .first()
+            .filter(|_| src.update_in_place)
+            .map(|k| k.dest.clone());
         let text = String::from_utf8_lossy(src.bytes).into_owned();
         let (fm, body, invalid) = split_frontmatter_full(&text);
 
@@ -450,13 +466,14 @@ impl<'a> Importer<'a> {
         }
         write_atomic(&dest, out.as_bytes())
             .with_context(|| format!("writing {}", dest.display()))?;
-        self.known.insert(
-            src.from,
-            Known {
-                hash,
-                dest: dest.clone(),
-            },
-        );
+        self.store_hashes
+            .insert(blake3::hash(out.as_bytes()).to_hex().to_string());
+        let copies = self.known.entry(src.from).or_default();
+        copies.retain(|k| k.dest != dest);
+        copies.push(Known {
+            hash,
+            dest: dest.clone(),
+        });
         self.report.imported += 1;
         if is_unsorted {
             self.report.unsorted += 1;
@@ -495,8 +512,10 @@ impl<'a> Importer<'a> {
                 self.report.skipped += 1;
                 continue;
             }
+            // From the canonical path: a relative one (`import docs`) has no
+            // ancestors above the current directory.
             let repo = match (&explicit, use_git) {
-                (None, true) => file.parent().and_then(repo_project_name),
+                (None, true) => Path::new(&key).parent().and_then(repo_project_name),
                 _ => None,
             };
             todo.push((file, key, repo));
@@ -533,6 +552,7 @@ impl<'a> Importer<'a> {
                         name,
                         bytes: &bytes,
                         project,
+                        update_in_place: true,
                     })
                 });
             if let Err(e) = res {
@@ -594,8 +614,10 @@ pub fn import_paths(
 }
 
 /// Import files uploaded through the web UI into `project` (sanitized), or
-/// `unsorted`. Each is recorded as `imported_from: upload:<relative path>`,
-/// so uploading the same file again is skipped.
+/// `unsorted`. Each is recorded as `imported_from: upload:<relative path>`.
+/// Content already imported under that name, or identical to a plan file in
+/// the store, is skipped; other content is always a new plan (relative names
+/// repeat across folders, so an upload never overwrites an earlier copy).
 pub fn import_uploads(
     files: &[Upload],
     project: Option<&str>,
@@ -613,13 +635,15 @@ pub fn import_uploads(
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_default();
         let slug = slugify(&stem);
-        let name = format!("{}.md", if slug.is_empty() { "plan" } else { &slug });
+        let slug = truncate_slug(&slug, MAX_UPLOAD_NAME_LEN);
+        let name = format!("{}.md", if slug.is_empty() { "plan" } else { slug });
         let res = imp.import_one(Source {
             from: format!("upload:{rel}"),
             name,
             fallback_title: stem,
             bytes: &f.bytes,
             project: project.clone(),
+            update_in_place: false,
         });
         if let Err(e) = res {
             imp.fail(rel, format!("{e:#}"));
@@ -641,7 +665,8 @@ fn is_md(p: &Path) -> bool {
 }
 
 /// Push the `*.md` files under `dir` (sorted, depth-first) onto `out`.
-/// Hidden entries, [`SKIP_DIRS`] and symlinked directories are skipped.
+/// Hidden entries, [`SKIP_DIRS`] and symlinks (to files or directories,
+/// which could lead outside the tree) are skipped.
 /// Returns `false` once `out` reached [`MAX_IMPORT_FILES`].
 fn collect_md_tree(dir: &Path, out: &mut Vec<PathBuf>) -> bool {
     let Ok(rd) = fs::read_dir(dir) else {
@@ -664,7 +689,7 @@ fn collect_md_tree(dir: &Path, out: &mut Vec<PathBuf>) -> bool {
             if !collect_md_tree(&path, out) {
                 return false;
             }
-        } else if is_md(&path) && path.is_file() {
+        } else if ft.is_file() && is_md(&path) {
             if out.len() >= MAX_IMPORT_FILES {
                 return false;
             }

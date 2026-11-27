@@ -27,9 +27,31 @@ pub fn slugify(s: &str) -> String {
     out
 }
 
+/// `slug` cut to at most `max` bytes, at a `-` boundary when there is one,
+/// without trailing `-`.
+pub fn truncate_slug(slug: &str, max: usize) -> &str {
+    let cut = if slug.len() > max {
+        // Slugs are ASCII, so byte slicing is safe.
+        match slug[..=max].rfind('-') {
+            Some(i) if i > 0 => &slug[..i],
+            _ => &slug[..max],
+        }
+    } else {
+        slug
+    };
+    cut.trim_end_matches('-')
+}
+
 #[cfg(test)]
 mod tests {
-    use super::slugify;
+    use super::{slugify, truncate_slug};
+
+    #[test]
+    fn truncates_at_dash() {
+        assert_eq!(truncate_slug("abc-def-ghi", 8), "abc-def");
+        assert_eq!(truncate_slug("abcdefghij", 4), "abcd");
+        assert_eq!(truncate_slug("ab-", 10), "ab");
+    }
 
     #[test]
     fn slugs() {

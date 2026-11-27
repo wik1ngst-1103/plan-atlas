@@ -551,6 +551,86 @@ fn uploads_import_with_project_and_are_idempotent() {
 }
 
 #[test]
+fn uploads_with_same_name_but_other_content_never_overwrite() {
+    let (_t, _src, _claude, paths) = loose_env();
+    let a = import_uploads(&[up("plan.md", "# From A\n")], Some("alpha"), &paths).unwrap();
+    assert_eq!(counts(&a), (1, 0, 0, 0));
+    let b = import_uploads(&[up("plan.md", "# From B\n")], Some("beta"), &paths).unwrap();
+    assert_eq!(counts(&b), (1, 0, 0, 0));
+    assert_eq!(b.plans[0].id, "PLAN-beta-001");
+    assert_eq!(b.plans[0].project, "beta");
+    let a_text = fs::read_to_string(paths.plans.join("alpha/plan.md")).unwrap();
+    assert!(a_text.contains("# From A") && a_text.contains("PLAN-alpha-001"));
+    assert!(
+        fs::read_to_string(paths.plans.join("beta/plan.md"))
+            .unwrap()
+            .contains("# From B")
+    );
+    // Either content again: skipped, wherever it went.
+    let again = import_uploads(
+        &[up("plan.md", "# From A\n"), up("plan.md", "# From B\n")],
+        Some("gamma"),
+        &paths,
+    )
+    .unwrap();
+    assert_eq!(counts(&again), (0, 2, 0, 0));
+}
+
+#[test]
+fn uploading_store_files_is_skipped() {
+    let (_t, src, claude, paths) = loose_env();
+    write(&src.join("a.md"), "# A\n");
+    import_paths(std::slice::from_ref(&src), None, &claude, &paths).unwrap();
+    let copy = fs::read(paths.unsorted.join("a.md")).unwrap();
+    let r = import_uploads(
+        &[Upload {
+            path: "plans/unsorted/a.md".into(),
+            bytes: copy,
+        }],
+        None,
+        &paths,
+    )
+    .unwrap();
+    assert_eq!(counts(&r), (0, 1, 0, 0));
+}
+
+#[test]
+fn long_upload_and_project_names_are_capped() {
+    let (_t, _src, _claude, paths) = loose_env();
+    let long = "word-".repeat(100);
+    let r = import_uploads(
+        &[up(&format!("{long}.md"), "# Long\n")],
+        Some(&long),
+        &paths,
+    )
+    .unwrap();
+    assert_eq!(counts(&r), (1, 0, 0, 0));
+    let project = &r.plans[0].project;
+    assert!(project.len() <= 64 && !project.ends_with('-'), "{project}");
+    let dir = paths.plans.join(project);
+    let name = fs::read_dir(&dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .find(|n| n.ends_with(".md"))
+        .unwrap();
+    assert!(name.len() <= 83, "{name}");
+}
+
+#[cfg(unix)]
+#[test]
+fn symlinked_files_in_a_tree_are_not_followed() {
+    let (t, src, claude, paths) = loose_env();
+    let outside = t.path().join("secret/private.md");
+    write(&outside, "# Private\n");
+    write(&src.join("a.md"), "# A\n");
+    std::os::unix::fs::symlink(&outside, src.join("link.md")).unwrap();
+    let r = import_paths(std::slice::from_ref(&src), None, &claude, &paths).unwrap();
+    assert_eq!(counts(&r), (1, 0, 1, 0));
+    assert!(!paths.unsorted.join("link.md").exists());
+}
+
+#[test]
 fn uploads_default_to_unsorted_and_names_are_safe() {
     let (_t, _src, _claude, paths) = loose_env();
     let files = [up("../../evil/..\\Nasty Name!.md", "# N\n")];

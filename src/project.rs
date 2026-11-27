@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::plan::slug::slugify;
+use crate::plan::slug::{slugify, truncate_slug};
 
 /// Slug of the repository directory containing `cwd` (or of `cwd` itself
 /// outside a repository); `None` when that slug is empty.
@@ -30,14 +30,18 @@ pub fn repo_project_name(path: &Path) -> Option<String> {
         .flatten()
 }
 
-/// A user-given project name as a directory-safe slug (`[a-z0-9-]`), or
-/// `unsorted` when nothing is left.
+/// Longest project name (directory name and id part).
+pub const MAX_PROJECT_LEN: usize = 64;
+
+/// A user-given project name as a directory-safe slug (`[a-z0-9-]`, at most
+/// [`MAX_PROJECT_LEN`] bytes), or `unsorted` when nothing is left.
 pub fn sanitize_project(name: &str) -> String {
     let s = slugify(name);
+    let s = truncate_slug(&s, MAX_PROJECT_LEN);
     if s.is_empty() {
         "unsorted".to_string()
     } else {
-        s
+        s.to_string()
     }
 }
 
