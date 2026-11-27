@@ -6,17 +6,20 @@ use std::time::Duration;
 use axum::Json;
 use axum::Router;
 use axum::body::Bytes;
-use axum::extract::{Path, Query, State};
+use axum::extract::multipart::{MultipartError, MultipartRejection};
+use axum::extract::{DefaultBodyLimit, Multipart, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, patch};
+use axum::routing::{get, patch, post};
 use futures_util::Stream;
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast::error::RecvError;
 
 use super::AppState;
 use crate::events::LiveEvent;
+use crate::import::{ImportReport, Upload, import_uploads};
+use crate::index::index_file;
 use crate::ops::{OpError, set_task_status_op, valid_id};
 use crate::plan::{Plan, TaskStatus};
 use crate::store::{PlanFilter, TaskFilter};
@@ -67,6 +70,100 @@ pub(super) fn router() -> Router<AppState> {
         .route("/api/graph", get(graph))
         .route("/api/search", get(search))
         .route("/api/stream", get(stream))
+        .route(
+            "/api/import",
+            post(import_upload).layer(DefaultBodyLimit::max(MAX_UPLOAD_BODY)),
+        )
+}
+
+const MAX_UPLOAD_FILES: usize = 200;
+const MAX_UPLOAD_FILE_BYTES: usize = 2 * 1024 * 1024;
+const MAX_UPLOAD_TOTAL_BYTES: usize = 20 * 1024 * 1024;
+/// Total files plus room for the multipart framing and the project field.
+const MAX_UPLOAD_BODY: usize = MAX_UPLOAD_TOTAL_BYTES + 1024 * 1024;
+const MAX_PROJECT_LEN: usize = 100;
+
+fn bad_multipart(e: MultipartError) -> ApiError {
+    if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
+        ApiError::BadRequest("upload too large: at most 20 MB in total".into())
+    } else {
+        ApiError::BadRequest(format!("invalid upload: {}", e.body_text()))
+    }
+}
+
+/// `multipart/form-data` upload of `.md` files (`files`, the file name may be
+/// a relative path from a folder pick) and an optional `project`. All or
+/// nothing: any rejected file fails the whole request before anything is
+/// written. The copies are indexed right away so the returned ids open; the
+/// watcher's `plan_changed` events refresh open pages.
+async fn import_upload(
+    State(s): State<AppState>,
+    mp: Result<Multipart, MultipartRejection>,
+) -> ApiResult<ImportReport> {
+    let mut mp =
+        mp.map_err(|e| ApiError::BadRequest(format!("invalid upload: {}", e.body_text())))?;
+    let mut files: Vec<Upload> = Vec::new();
+    let mut project: Option<String> = None;
+    let mut total = 0usize;
+    while let Some(mut field) = mp.next_field().await.map_err(bad_multipart)? {
+        match field.name() {
+            Some("files") => {
+                let name = field.file_name().unwrap_or_default().to_string();
+                if !name.to_ascii_lowercase().ends_with(".md") {
+                    return Err(ApiError::BadRequest(format!(
+                        "only Markdown (.md) files can be imported: {name}"
+                    )));
+                }
+                if files.len() >= MAX_UPLOAD_FILES {
+                    return Err(ApiError::BadRequest(format!(
+                        "too many files: at most {MAX_UPLOAD_FILES} per import"
+                    )));
+                }
+                let mut bytes = Vec::new();
+                while let Some(chunk) = field.chunk().await.map_err(bad_multipart)? {
+                    bytes.extend_from_slice(&chunk);
+                    if bytes.len() > MAX_UPLOAD_FILE_BYTES {
+                        return Err(ApiError::BadRequest(format!(
+                            "{name} is too large: at most 2 MB per file"
+                        )));
+                    }
+                }
+                total += bytes.len();
+                if total > MAX_UPLOAD_TOTAL_BYTES {
+                    return Err(ApiError::BadRequest(
+                        "upload too large: at most 20 MB in total".into(),
+                    ));
+                }
+                files.push(Upload { path: name, bytes });
+            }
+            Some("project") => {
+                let text = field.text().await.map_err(bad_multipart)?;
+                let text = text.trim();
+                if text.chars().count() > MAX_PROJECT_LEN {
+                    return Err(ApiError::BadRequest("project name too long".into()));
+                }
+                project = Some(text.to_string()).filter(|t| !t.is_empty());
+            }
+            _ => {}
+        }
+    }
+    if files.is_empty() {
+        return Err(ApiError::BadRequest("no files to import".into()));
+    }
+    blocking(move || {
+        let report =
+            import_uploads(&files, project.as_deref(), &s.paths).map_err(ApiError::internal)?;
+        for p in &report.plans {
+            if let Err(e) = index_file(&s.store, &s.tax, &p.path) {
+                eprintln!(
+                    "plan-atlas: warning: indexing {} failed: {e:#}",
+                    p.path.display()
+                );
+            }
+        }
+        Ok(Json(report))
+    })
+    .await
 }
 
 /// Run a blocking store closure off the async runtime.
