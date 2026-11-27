@@ -124,6 +124,7 @@ impl Store {
         let _mode: String =
             conn.pragma_update_and_check(None, "journal_mode", "WAL", |r| r.get(0))?;
         conn.pragma_update(None, "busy_timeout", 2000)?;
+        conn.pragma_update(None, "synchronous", "NORMAL")?; // safe with WAL; avoids an fsync per commit
         conn.pragma_update(None, "foreign_keys", "ON")?;
         let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
         match version {
@@ -146,13 +147,12 @@ impl Store {
         self.conn.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    /// Monotonic counter bumped by every write; cheap change detection.
+    /// SQLite `PRAGMA data_version`: changes whenever another connection
+    /// (e.g. the hook process) commits to the database.
     pub fn data_version(&self) -> Result<i64> {
-        Ok(self.conn().query_row(
-            "SELECT value FROM meta WHERE key = 'data_version'",
-            [],
-            |r| r.get(0),
-        )?)
+        Ok(self
+            .conn()
+            .pragma_query_value(None, "data_version", |r| r.get(0))?)
     }
 
     /// Total rows modified by this connection so far (for tests/diagnostics).

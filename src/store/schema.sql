@@ -54,6 +54,9 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
     tokenize = 'unicode61 remove_diacritics 2'
 );
 
--- bumped on every write; lets callers detect index changes cheaply
-CREATE TABLE meta (key TEXT PRIMARY KEY, value INTEGER NOT NULL);
-INSERT INTO meta (key, value) VALUES ('data_version', 0);
+-- rowids of a plan's search_fts rows, so they can be deleted without scanning the FTS table
+CREATE TABLE fts_rows (
+    plan_id TEXT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+    fts_rowid INTEGER NOT NULL
+);
+CREATE INDEX fts_rows_plan ON fts_rows(plan_id);

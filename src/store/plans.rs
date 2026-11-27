@@ -41,23 +41,25 @@ fn collect_section_text(sections: &[Section], out: &mut String) {
     }
 }
 
-fn bump_version(conn: &Connection) -> Result<()> {
-    conn.execute(
-        "UPDATE meta SET value = value + 1 WHERE key = 'data_version'",
-        [],
-    )?;
-    Ok(())
-}
-
 /// Remove a plan and everything derived from it. Returns whether it existed.
 fn delete_plan(conn: &Connection, id: &str) -> Result<bool> {
-    conn.execute(
-        "DELETE FROM search_fts WHERE ref = ?1
-           OR (kind = 'task' AND substr(ref, 1, length(?1) + 1) = ?1 || char(31))",
-        [id],
-    )?;
-    // tasks, tags and relations go with it via ON DELETE CASCADE
+    let rowids: Vec<i64> = conn
+        .prepare("SELECT fts_rowid FROM fts_rows WHERE plan_id = ?1")?
+        .query_map([id], |r| r.get(0))?
+        .collect::<rusqlite::Result<_>>()?;
+    for rowid in rowids {
+        conn.execute("DELETE FROM search_fts WHERE rowid = ?1", [rowid])?;
+    }
+    // tasks, tags, relations and fts_rows go with it via ON DELETE CASCADE
     Ok(conn.execute("DELETE FROM plans WHERE id = ?1", [id])? > 0)
+}
+
+fn record_fts_row(conn: &Connection, plan_id: &str) -> Result<()> {
+    conn.execute(
+        "INSERT INTO fts_rows (plan_id, fts_rowid) VALUES (?1, ?2)",
+        params![plan_id, conn.last_insert_rowid()],
+    )?;
+    Ok(())
 }
 
 const SUMMARY_SQL: &str =
@@ -134,7 +136,10 @@ impl Store {
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
             .optional()?;
-        if existing.is_some_and(|(h, p)| h == plan.content_hash && p == path) {
+        if existing
+            .as_ref()
+            .is_some_and(|(h, p)| *h == plan.content_hash && *p == path)
+        {
             return Ok(());
         }
 
@@ -148,7 +153,9 @@ impl Store {
         if let Some(stale) = stale {
             delete_plan(&tx, &stale)?;
         }
-        delete_plan(&tx, &plan.id)?;
+        if existing.is_some() {
+            delete_plan(&tx, &plan.id)?;
+        }
 
         tx.execute(
             "INSERT INTO plans (id, project, title, path, json, hash, created, structured, warnings_count)
@@ -189,6 +196,7 @@ impl Store {
             "INSERT INTO search_fts (kind, ref, title, body) VALUES ('plan', ?1, ?2, ?3)",
             params![plan.id, super::fold(&plan.title), super::fold(&body)],
         )?;
+        record_fts_row(&tx, &plan.id)?;
 
         for (pos, task) in plan.tasks.iter().enumerate() {
             tx.execute(
@@ -221,8 +229,8 @@ impl Store {
                     super::fold(&body)
                 ],
             )?;
+            record_fts_row(&tx, &plan.id)?;
         }
-        bump_version(&tx)?;
         tx.commit()?;
         Ok(())
     }
@@ -238,7 +246,6 @@ impl Store {
         if let Some(id) = id {
             let tx = conn.unchecked_transaction()?;
             delete_plan(&tx, &id)?;
-            bump_version(&tx)?;
             tx.commit()?;
         }
         Ok(())

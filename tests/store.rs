@@ -142,16 +142,14 @@ fn upsert_same_hash_is_noop() {
     let (_d, s) = store();
     let mut p = plan("auth-001", "demo", &[], &[]);
     s.upsert_plan(&p).unwrap();
-    let (changes, ver) = (s.total_changes(), s.data_version().unwrap());
+    let changes = s.total_changes();
     s.upsert_plan(&p).unwrap();
     assert_eq!(s.total_changes(), changes);
-    assert_eq!(s.data_version().unwrap(), ver);
 
     p.content_hash = "other".into();
     p.title = "Changed".into();
     s.upsert_plan(&p).unwrap();
     assert!(s.total_changes() > changes);
-    assert!(s.data_version().unwrap() > ver);
     assert_eq!(s.get_plan("auth-001").unwrap().unwrap().title, "Changed");
     assert_eq!(s.list_tasks(&TaskFilter::default()).unwrap().len(), 2);
 }
@@ -242,4 +240,43 @@ fn search_without_diacritics() {
     assert!(s.search("   ", 10).unwrap().plans.is_empty());
     assert!(s.search("\"", 10).unwrap().plans.is_empty());
     assert_eq!(s.search("title", 1).unwrap().plans.len(), 1); // limit
+}
+
+#[test]
+fn data_version_changes_on_other_connection_commit() {
+    let (d, s) = store();
+    let before = s.data_version().unwrap();
+    let other = Connection::open(d.path().join("i.db")).unwrap();
+    other
+        .execute(
+            "INSERT INTO plans (id, project, title, path, json, hash, created, structured, warnings_count)
+             VALUES ('x', 'p', 't', '/x.md', '{}', 'h', NULL, 0, 0)",
+            [],
+        )
+        .unwrap();
+    assert_ne!(s.data_version().unwrap(), before);
+}
+
+#[test]
+fn bulk_upsert_1000_plans_is_fast() {
+    let (_d, s) = store();
+    let start = std::time::Instant::now();
+    for i in 0..1000 {
+        let mut p = plan(&format!("bulk-{i:04}"), "bulk", &["domain/data"], &[]);
+        p.tasks.push(task("T3", "Third", TaskStatus::Todo, &[]));
+        p.sections[0].body_md = format!("tính năng số {i} đăng nhập");
+        s.upsert_plan(&p).unwrap();
+    }
+    let elapsed = start.elapsed();
+    println!("bulk upsert of 1000 plans: {elapsed:?}");
+    assert!(elapsed.as_secs() < 5, "too slow: {elapsed:?}");
+    let r = s.search("dang nhap", 5).unwrap();
+    assert_eq!(r.plans.len(), 5);
+    assert_eq!(s.search("title bulk-0042", 10).unwrap().plans.len(), 1);
+    assert_eq!(s.list_plans(&PlanFilter::default()).unwrap().len(), 1000);
+    // re-upserting a changed plan replaces its FTS rows instead of duplicating them
+    let mut p = plan("bulk-0042", "bulk", &[], &[]);
+    p.content_hash = "changed".into();
+    s.upsert_plan(&p).unwrap();
+    assert_eq!(s.search("title bulk-0042", 10).unwrap().plans.len(), 1);
 }
