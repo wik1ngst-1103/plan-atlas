@@ -49,6 +49,27 @@ fn is_plan_file(root: &Path, path: &Path) -> bool {
         .any(|c| c.as_os_str().to_string_lossy().starts_with('.'))
 }
 
+/// The plans root as configured and canonicalized: watchers may report
+/// either form (macOS FSEvents reports `/private/var/...`, symlinked homes
+/// resolve to their target).
+fn watch_roots(plans: &Path) -> Vec<PathBuf> {
+    let mut roots = vec![plans.to_path_buf()];
+    if let Ok(c) = std::fs::canonicalize(plans)
+        && c != plans
+    {
+        roots.push(c);
+    }
+    roots
+}
+
+/// [`is_plan_file`] relative to whichever of `roots` contains `path`.
+fn is_watched_plan_file(roots: &[PathBuf], path: &Path) -> bool {
+    match roots.iter().find(|r| path.starts_with(r)) {
+        Some(root) => is_plan_file(root, path),
+        None => false,
+    }
+}
+
 fn collect_md(root: &Path, dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(rd) = std::fs::read_dir(dir) else {
         return;
@@ -118,30 +139,32 @@ impl Indexer {
 
     pub fn watch(self, tx: broadcast::Sender<LiveEvent>) -> Result<WatchHandle> {
         let Indexer { paths, store, tax } = self;
-        let root = paths.plans.clone();
-        let mut debouncer = new_debouncer(DEBOUNCE, None, move |res: DebounceEventResult| {
-            let events = match res {
-                Ok(events) => events,
-                Err(errs) => {
-                    for e in errs {
-                        eprintln!("plan-atlas: watch error: {e}");
+        let roots = watch_roots(&paths.plans);
+        // Tick once per debounce period (the default ticks 4x as often).
+        let mut debouncer =
+            new_debouncer(DEBOUNCE, Some(DEBOUNCE), move |res: DebounceEventResult| {
+                let events = match res {
+                    Ok(events) => events,
+                    Err(errs) => {
+                        for e in errs {
+                            eprintln!("plan-atlas: watch error: {e}");
+                        }
+                        return;
                     }
-                    return;
-                }
-            };
-            let mut seen = HashSet::new();
-            for ev in events {
-                if matches!(ev.kind, EventKind::Access(_)) {
-                    continue;
-                }
-                for path in &ev.paths {
-                    if is_plan_file(&root, path) && seen.insert(path.clone()) {
-                        handle_path(&store, &tax, &tx, path);
+                };
+                let mut seen = HashSet::new();
+                for ev in events {
+                    if matches!(ev.kind, EventKind::Access(_)) {
+                        continue;
+                    }
+                    for path in &ev.paths {
+                        if is_watched_plan_file(&roots, path) && seen.insert(path.clone()) {
+                            handle_path(&store, &tax, &tx, path);
+                        }
                     }
                 }
-            }
-        })
-        .context("creating file watcher")?;
+            })
+            .context("creating file watcher")?;
         debouncer
             .watch(&paths.plans, RecursiveMode::Recursive)
             .with_context(|| format!("watching {}", paths.plans.display()))?;
@@ -189,5 +212,34 @@ fn handle_path(store: &Store, tax: &Taxonomy, tx: &broadcast::Sender<LiveEvent>,
             Ok(None) => {}
             Err(e) => eprintln!("plan-atlas: lookup {}: {e:#}", path.display()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn watched_paths_match_canonical_root() {
+        let t = tempfile::tempdir().unwrap();
+        let real = t.path().join("real/.plan-atlas/plans");
+        std::fs::create_dir_all(&real).unwrap();
+        let link = t.path().join("home");
+        std::os::unix::fs::symlink(t.path().join("real"), &link).unwrap();
+        let roots = watch_roots(&link.join(".plan-atlas/plans"));
+        let canon = std::fs::canonicalize(&real).unwrap();
+        // Reported through the canonical path (like macOS /private/var).
+        assert!(is_watched_plan_file(&roots, &canon.join("proj/a.md")));
+        assert!(is_watched_plan_file(
+            &roots,
+            &link.join(".plan-atlas/plans/proj/a.md")
+        ));
+        assert!(!is_watched_plan_file(
+            &roots,
+            &canon.join("proj/.hidden.md")
+        ));
+        assert!(!is_watched_plan_file(&roots, &canon.join("proj/a.txt")));
+        assert!(!is_watched_plan_file(&roots, Path::new("/elsewhere/a.md")));
     }
 }
