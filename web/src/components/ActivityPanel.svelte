@@ -47,7 +47,7 @@
   {#each groups as [project, ids] (project)}
     <div class="box">
       <div class="kind">
-        <span class="dot" style="background:{projectColor(project)}"></span>
+        <span class="dot" style="background:{$projectColor(project)}"></span>
         {project ? $t('nav.project', { name: project }) : $t('activity.unknownProject')}
       </div>
       {#each ids as id (id)}

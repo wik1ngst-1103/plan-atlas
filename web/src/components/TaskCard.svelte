@@ -53,7 +53,7 @@
 >
   {#if showPlan}
     <div class="pl">
-      <span class="dot" style="background:{projectColor(item.project)}"></span>📄 {item.plan_title}
+      <span class="dot" style="background:{$projectColor(item.project)}"></span>📄 {item.plan_title}
     </div>
   {/if}
   <div class="ttl"><span class="id">{task.id}</span> {task.name}</div>

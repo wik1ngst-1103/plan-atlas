@@ -82,7 +82,7 @@
     <h3 class="sec">{$t('relation.related')}</h3>
     {#each plans as p (p.id)}
       <button class="mini" onclick={() => openPlan(p.id)}>
-        <span class="dot" style="background:{projectColor(p.project)}"></span>
+        <span class="dot" style="background:{$projectColor(p.project)}"></span>
         <span class="grow">
           <b>{p.title}</b>
           <span class="meta">

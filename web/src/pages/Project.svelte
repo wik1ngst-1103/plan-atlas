@@ -42,7 +42,7 @@
 
 <div class="page">
   <div class="kind">
-    <span class="dot" style="background:{projectColor(name)}"></span>{$t('project.kind')}
+    <span class="dot" style="background:{$projectColor(name)}"></span>{$t('project.kind')}
   </div>
   <h1 class="page-title">{name}</h1>
   {#if error}

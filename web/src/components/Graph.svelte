@@ -234,7 +234,7 @@
           stroke-dasharray="{ring * done} {ring}"
           transform="rotate(-90)"
         />
-        <circle class="body" r={n.r} style="fill:{projectColor(n.plan.project)}" />
+        <circle class="body" r={n.r} style="fill:{$projectColor(n.plan.project)}" />
         <text class="count" y="4">{n.plan.task_count}</text>
         {#if labels || (highlight && highlight.has(n.id))}
           <text class="label" y={n.r + 22}>{short(n.plan.title)}</text>

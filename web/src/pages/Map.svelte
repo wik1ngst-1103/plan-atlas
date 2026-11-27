@@ -96,7 +96,7 @@
           {#each projects as p (p)}
             <span>
               <svg width="12" height="12" aria-hidden="true">
-                <circle cx="6" cy="6" r="6" style="fill:{projectColor(p)}" />
+                <circle cx="6" cy="6" r="6" style="fill:{$projectColor(p)}" />
               </svg>{p}
             </span>
           {/each}

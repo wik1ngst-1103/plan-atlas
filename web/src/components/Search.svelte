@@ -229,7 +229,7 @@
                     <div class="m">
                       <b>{@html hl(item.plan.title, words)}</b>
                       <div class="s">
-                        <span class="dot" style="background:{projectColor(item.plan.project)}"
+                        <span class="dot" style="background:{$projectColor(item.plan.project)}"
                         ></span>
                         {$t('search.project')}
                         {@html hl(item.plan.project, words)} · {$t('plan.tasksDone', {

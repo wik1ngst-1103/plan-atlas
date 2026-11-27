@@ -69,7 +69,7 @@
     </div>
     {#each groups as g (g.name)}
       <h2 class="sec">
-        <span class="dot" style="background:{projectColor(g.name)}"></span>
+        <span class="dot" style="background:{$projectColor(g.name)}"></span>
         {$t('home.projectsHeading', { name: g.name })}
         <a class="more" href="#/project/{encodeURIComponent(g.name)}">{$t('common.viewProject')}</a>
       </h2>

@@ -3,13 +3,16 @@
   import type { ProjectSummary } from '../lib/generated/ProjectSummary';
   import { t } from '../lib/i18n';
   import { onDataChange } from '../lib/refetch';
-  import { projectColor as color } from '../lib/projectColor';
+  import { projectColor, setKnownProjects } from '../lib/projectColor';
   import { route } from '../lib/router';
 
   let projects = $state<ProjectSummary[]>([]);
   const load = () =>
     api.get<ProjectSummary[]>('/api/projects').then(
-      (p) => (projects = p),
+      (p) => {
+        projects = p;
+        setKnownProjects(p.map((x) => x.name));
+      },
       () => {},
     );
 
@@ -31,7 +34,7 @@
         class:on={$route.page === 'project' && $route.project === p.name}
         href="#/project/{encodeURIComponent(p.name)}"
       >
-        <span class="dot" style="background:{color(p.name)}"></span>{p.name}
+        <span class="dot" style="background:{$projectColor(p.name)}"></span>{p.name}
         <span class="n">{p.done_count}/{p.task_count}</span>
       </a>
     {:else}
