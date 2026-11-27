@@ -493,3 +493,9 @@ fn index_ready_event_serializes_with_type_tag() {
     let v = serde_json::to_value(LiveEvent::IndexReady).unwrap();
     assert_eq!(v, serde_json::json!({ "type": "index_ready" }));
 }
+
+#[test]
+fn activity_changed_event_serializes_with_type_tag() {
+    let v = serde_json::to_value(LiveEvent::ActivityChanged).unwrap();
+    assert_eq!(v, serde_json::json!({ "type": "activity_changed" }));
+}

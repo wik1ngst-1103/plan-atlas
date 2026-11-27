@@ -9,10 +9,19 @@ export type LiveEvent =
   | { type: 'plan_changed'; plan_id: string }
   | { type: 'task_status'; plan_id: string; task_id: string; status: TaskStatus }
   | { type: 'agent_step'; plan_id: string; task_id: string; agent: AgentView }
-  | { type: 'index_ready' };
+  | { type: 'index_ready' }
+  | { type: 'activity_changed' };
 export type LiveEventType = LiveEvent['type'];
 
-const NAMES: LiveEventType[] = ['plan_changed', 'task_status', 'agent_step', 'index_ready'];
+const NAMES: LiveEventType[] = [
+  'plan_changed',
+  'task_status',
+  'agent_step',
+  'index_ready',
+  'activity_changed',
+];
+/** Events after which `/api/activity` is refetched. */
+const REFRESH_ON: LiveEventType[] = ['agent_step', 'task_status', 'activity_changed'];
 const DEBOUNCE_MS = 300;
 
 export const connected = writable(false);
@@ -66,7 +75,7 @@ export function startLive() {
       } catch {
         return;
       }
-      if (name === 'agent_step' || name === 'task_status') refreshSoon();
+      if (REFRESH_ON.includes(name)) refreshSoon();
       listeners.get(name)?.forEach((cb) => cb(data));
     });
   }

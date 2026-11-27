@@ -13,7 +13,7 @@ use tokio::sync::broadcast;
 
 use crate::config::{Config, Paths};
 use crate::events::LiveEvent;
-use crate::events::live::spawn_live_poller;
+use crate::events::live::{EVENT_RETENTION_DAYS, spawn_live_poller};
 use crate::index::Indexer;
 use crate::server::{AppState, serve_with_shutdown};
 use crate::store::Store;
@@ -26,7 +26,6 @@ const MAX_PORT: u16 = 7430;
 const EXTRA_PORTS: u16 = 10;
 const PROBE_TIMEOUT: Duration = Duration::from_millis(500);
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(2);
-const PRUNE_DAYS: u32 = 7;
 const MAX_PROBE_BYTES: u64 = 64 * 1024;
 
 #[derive(Debug, Clone, Default)]
@@ -170,7 +169,7 @@ fn initial_index(
     tax: Arc<Taxonomy>,
     live: broadcast::Sender<LiveEvent>,
 ) {
-    if let Err(e) = store.prune_events(PRUNE_DAYS) {
+    if let Err(e) = store.prune_events(EVENT_RETENTION_DAYS) {
         eprintln!("plan-atlas: warning: pruning old events failed: {e:#}");
     }
     // Existing plans first, so the UI is populated before any import work.

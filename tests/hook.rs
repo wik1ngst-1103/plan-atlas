@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use assert_cmd::Command;
 use plan_atlas::config::Paths;
-use plan_atlas::events::live::spawn_live_poller;
+use plan_atlas::events::live::{PollerConfig, spawn_live_poller, spawn_live_poller_with};
 use plan_atlas::events::{LiveEvent, humanize, run_hook};
 use plan_atlas::store::{EventKind, HookEvent, Store, now_ms};
 use plan_atlas::taxonomy::Taxonomy;
@@ -251,10 +251,126 @@ async fn poller_broadcasts_new_steps_only() {
         }
         other => panic!("unexpected {other:?}"),
     }
+    // The new agent also changes the live set; nothing else is broadcast.
+    let ev = tokio::time::timeout(Duration::from_secs(3), rx.recv())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(matches!(ev, LiveEvent::ActivityChanged), "{ev:?}");
     assert!(
         rx.try_recv().is_err(),
         "unlinked start_task and SubagentStart are not broadcast"
     );
+    handle.abort();
+}
+
+async fn next_event(rx: &mut broadcast::Receiver<LiveEvent>) -> LiveEvent {
+    tokio::time::timeout(Duration::from_secs(3), rx.recv())
+        .await
+        .expect("an event arrives")
+        .unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn poller_broadcasts_activity_changed_on_subagent_stop() {
+    let (_d, paths, store) = setup();
+    let store = Arc::new(store);
+    let (tx, mut rx) = broadcast::channel(16);
+    let handle = spawn_live_poller(store.clone(), tx);
+    tokio::time::sleep(Duration::from_millis(700)).await;
+
+    let other = paths.clone();
+    let feed_bg = |names: &'static [&'static str]| {
+        let p = other.clone();
+        tokio::task::spawn_blocking(move || feed(&p, names))
+    };
+    feed_bg(&[
+        "pre_tool_start_task",
+        "subagent_start",
+        "pre_tool_subagent_grep",
+    ])
+    .await
+    .unwrap();
+    assert!(matches!(
+        next_event(&mut rx).await,
+        LiveEvent::AgentStep { .. }
+    ));
+    assert!(matches!(
+        next_event(&mut rx).await,
+        LiveEvent::ActivityChanged
+    ));
+    let agents = |store: &Store| -> Vec<String> {
+        store
+            .live_agents()
+            .unwrap()
+            .iter()
+            .flat_map(|t| t.agents.iter().map(|a| a.agent_id.clone()))
+            .collect()
+    };
+    assert!(agents(&store).contains(&"agent-abc123".to_string()));
+
+    // SubagentStop writes no step, only a change to the live set.
+    feed_bg(&["subagent_stop"]).await.unwrap();
+    assert!(matches!(
+        next_event(&mut rx).await,
+        LiveEvent::ActivityChanged
+    ));
+    assert!(!agents(&store).contains(&"agent-abc123".to_string()));
+    handle.abort();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn poller_broadcasts_activity_changed_on_idle_expiry() {
+    let (_d, _paths, store) = setup();
+    store.set_session_task("s", PLAN, "TASK-001").unwrap();
+    // Live now, expires from the 120 s window in about 0.8 s, with no write.
+    store
+        .insert_event(&event("s", "main", EventKind::PreTool, now_ms() - 119_200))
+        .unwrap();
+    assert_eq!(store.live_agents().unwrap().len(), 1);
+    let store = Arc::new(store);
+    let (tx, mut rx) = broadcast::channel(16);
+    let cfg = PollerConfig {
+        poll: Duration::from_millis(50),
+        activity_every: Duration::from_millis(200),
+        ..PollerConfig::default()
+    };
+    let handle = spawn_live_poller_with(store.clone(), tx, cfg);
+    assert!(matches!(
+        next_event(&mut rx).await,
+        LiveEvent::ActivityChanged
+    ));
+    assert!(store.live_agents().unwrap().is_empty());
+    // Nothing live any more: no further rechecks or broadcasts.
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    assert!(rx.try_recv().is_err());
+    handle.abort();
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn poller_prunes_old_events_periodically() {
+    let (_d, _paths, store) = setup();
+    store
+        .insert_event(&event(
+            "s",
+            "old",
+            EventKind::PreTool,
+            now_ms() - 8 * 86_400_000,
+        ))
+        .unwrap();
+    let store = Arc::new(store);
+    let (tx, _rx) = broadcast::channel(16);
+    let cfg = PollerConfig {
+        poll: Duration::from_millis(50),
+        prune_every: Duration::from_millis(100),
+        ..PollerConfig::default()
+    };
+    let handle = spawn_live_poller_with(store.clone(), tx, cfg);
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while store.max_event_id().unwrap() != 0 && Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    assert_eq!(store.max_event_id().unwrap(), 0, "old event pruned");
     handle.abort();
 }
 

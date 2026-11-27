@@ -29,6 +29,9 @@ pub enum LiveEvent {
         task_id: String,
         agent: AgentView,
     },
-    /// The launcher's background import + initial scan finished.
+    /// The launcher's background initial scan (or a later import) finished.
     IndexReady,
+    /// The set of live agents changed (an agent started, stopped, went idle
+    /// or its session was unlinked); refetch `/api/activity`.
+    ActivityChanged,
 }
