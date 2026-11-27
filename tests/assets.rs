@@ -84,6 +84,23 @@ async fn serves_index_and_spa_fallback() {
 }
 
 #[tokio::test]
+async fn missing_files_are_404_not_index() {
+    let (_d, app) = app();
+    for uri in [
+        "/assets/index-deadbeef.js",
+        "/assets/nope",
+        "/favicon.ico",
+        "/sub/dir/missing.css",
+        "/x.gz",
+    ] {
+        let (st, _, _) = get(&app, uri, None).await;
+        assert_eq!(st, StatusCode::NOT_FOUND, "{uri}");
+    }
+    let (st, _, _) = get(&app, "/board", None).await;
+    assert_eq!(st, StatusCode::OK, "extension-less paths still get the SPA");
+}
+
+#[tokio::test]
 async fn assets_are_immutable_and_gzip_is_negotiated() {
     let (_d, app) = app();
     let path = asset_path();

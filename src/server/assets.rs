@@ -63,8 +63,19 @@ fn serve_file(path: &str, headers: &HeaderMap) -> Option<Response> {
     Some(res)
 }
 
-/// Router fallback: unknown `/api` paths and non-GET requests are 404; other
-/// GETs get the matching embedded file, else the SPA `index.html`.
+/// A path that names a file (under `assets/`, or with an extension in its last
+/// segment): when missing it is a 404, not the SPA page.
+fn looks_like_file(path: &str) -> bool {
+    path.starts_with("assets/")
+        || path
+            .rsplit('/')
+            .next()
+            .is_some_and(|last| last.contains('.'))
+}
+
+/// Router fallback: unknown `/api` paths, missing files and non-GET requests
+/// are 404; other GETs get the matching embedded file, else the SPA
+/// `index.html`.
 pub(super) async fn fallback(method: Method, uri: Uri, headers: HeaderMap) -> Response {
     let api = uri.path() == "/api" || uri.path().starts_with("/api/");
     if api || !matches!(method, Method::GET | Method::HEAD) {
@@ -76,6 +87,9 @@ pub(super) async fn fallback(method: Method, uri: Uri, headers: HeaderMap) -> Re
     } else {
         serve_file(path, &headers)
     };
+    if direct.is_none() && looks_like_file(path) {
+        return error_response(StatusCode::NOT_FOUND, "not found");
+    }
     direct
         .or_else(|| serve_file("index.html", &headers))
         .unwrap_or_else(|| Html(NOT_BUILT).into_response())
