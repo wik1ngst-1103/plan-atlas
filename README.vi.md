@@ -1,128 +1,211 @@
-# 🗺 Plan Atlas
+<div align="center">
+
+# Plan Atlas
+
+**Không gian làm việc cục bộ cho các plan triển khai do Claude Code tạo ra, theo dõi xuyên suốt mọi dự án.**
+
+[![CI](https://github.com/wik1ngst-1103/plan-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/wik1ngst-1103/plan-atlas/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Platforms](https://img.shields.io/badge/platforms-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
 
 [English](README.md) · **Tiếng Việt**
 
-**Một nơi duy nhất cho mọi plan Claude Code tạo ra — lập trình viên hay người không chuyên đều đọc hiểu được.**
+</div>
 
-Plan Atlas là ứng dụng mã nguồn mở, nhỏ gọn, chạy ngay trên máy bạn. Nó gom các plan triển khai mà Claude Code tạo ở mọi dự án, hiển thị chúng như tài liệu gọn gàng kèm bảng công việc, và cho bạn xem Claude cùng các trợ lý (subagent) đang làm gì — bằng câu chữ dễ hiểu, theo thời gian thực.
+<p align="center">
+  <img src="docs/images/plan-document.png" alt="Một plan hiển thị dạng tài liệu trong Plan Atlas" width="900">
+</p>
 
-> Trạng thái: **pre-alpha**. Bản mẫu giao diện ở [`docs/prototype/index.html`](docs/prototype/index.html); plan triển khai v1 ở [`docs/superpowers/plans/`](docs/superpowers/plans/).
+Plan Atlas thu thập các plan Claude Code tạo ra, sắp xếp theo dự án và trình bày mỗi plan thành một tài liệu có cấu trúc, kèm danh sách việc có thể theo dõi. Trong lúc Claude làm việc, ứng dụng cho biết việc nào đang được thực hiện và từng trợ lý (subagent) đang làm gì, bằng ngôn ngữ dễ hiểu cả với người không chuyên kỹ thuật. Toàn bộ chạy trên máy của bạn, từ một file thực thi duy nhất.
 
----
+## Mục lục
 
-## Vì sao cần
+- [Tính năng](#tính-năng)
+- [Cài đặt](#cài-đặt)
+- [Bắt đầu](#bắt-đầu)
+- [Sử dụng](#sử-dụng)
+- [Tích hợp Claude Code](#tích-hợp-claude-code)
+- [Cấu hình](#cấu-hình)
+- [Định dạng plan](#định-dạng-plan)
+- [Kiến trúc](#kiến-trúc)
+- [Bảo mật và quyền riêng tư](#bảo-mật-và-quyền-riêng-tư)
+- [Đóng góp](#đóng-góp)
+- [Giấy phép](#giấy-phép)
 
-Claude Code lưu plan vào `~/.claude/plans/` với tên ngẫu nhiên kiểu `jiggly-popping-popcorn.md`. Vài tuần sau bạn có hàng chục file, không biết file nào của dự án nào, cũng không xem được tiến độ. Plan Atlas giải quyết việc đó:
+## Tính năng
 
-| | |
-|---|---|
-| 📚 **Một kho, chia theo dự án** | Mọi plan nằm trong `~/.plan-atlas/plans/<dự-án>/`. Plan cũ của Claude Code được tự động nhập (file gốc không bao giờ bị sửa). |
-| 📄 **Plan như tài liệu** | Cấu trúc cố định — Overview, Requirements & Scope, Technical Analysis, Task Breakdown, Risks — kèm mục lục “Trên trang này”. |
-| ✅ **Theo dõi công việc** | Mỗi việc có trạng thái, độ khó (1–5) và model + mức suy nghĩ được khuyến nghị (Haiku / Sonnet / Opus). Kéo thẻ trên bảng để cập nhật. |
-| 🤖 **Hoạt động trực tiếp** | Thấy “Trợ lý lập trình đang sửa phần lưu token” lồng ngay dưới đúng plan và việc. Lệnh gốc chỉ cách một cú bấm, dành cho lập trình viên. |
-| 🧭 **Bản đồ kiến thức** | Chủ đề (tag) theo bộ phân loại chung, cùng đồ thị quan hệ giữa các plan (`depends_on`, `extends`, `relates_to`, cùng chủ đề). |
-| 🔍 **Tìm kiếm** | Plan, việc và chủ đề. Gõ không dấu vẫn ra (`dang nhap` → `đăng nhập`). |
-| 🌐 **Song ngữ** | Giao diện tiếng Anh và tiếng Việt, tự chọn theo trình duyệt, đổi được bằng nút trên thanh trên cùng. |
-
-## Cách hoạt động
-
-```
-Claude Code ──(MCP, stdio)── plan-atlas mcp ──┐
-Claude Code ──(hooks)─────── plan-atlas hook ─┼──► chỉ mục SQLite ◄── plan-atlas (web, 127.0.0.1)
-~/.plan-atlas/plans/*.md ◄──── theo dõi file ─┘                          ▲
-                                                                   trình duyệt của bạn
-```
-
-- **Một file chạy duy nhất**, viết bằng Rust: web server, MCP server, xử lý hook và trình cài đặt gói trong một file khoảng 9 MB. Mục tiêu RAM khi rảnh: **≤ 40 MB** với 1.000 plan.
-- **File Markdown là nguồn sự thật.** SQLite chỉ là chỉ mục — xoá đi sẽ tự dựng lại.
-- **Chỉ chạy cục bộ.** Server chỉ nghe ở `127.0.0.1`, không gửi dữ liệu đi đâu.
+- **Kho plan tập trung.** Plan của mọi dự án nằm ở một nơi, phân nhóm theo dự án. Plan có sẵn trong `~/.claude/plans` được nhập tự động; plan lưu ở nơi khác có thể nhập theo file hoặc thư mục. File gốc không bao giờ bị sửa.
+- **Plan dạng tài liệu.** Cấu trúc thống nhất (Tổng quan, Yêu cầu & phạm vi, Phân tích kỹ thuật, Chia nhỏ công việc, Rủi ro & phương án lùi), kèm mục lục theo sát vị trí đang đọc.
+- **Theo dõi công việc.** Mỗi việc có trạng thái, độ khó từ 1 đến 5, model và mức suy nghĩ được khuyến nghị. Cập nhật bằng kéo thả trên bảng công việc.
+- **Hoạt động trực tiếp.** Biết Claude đang làm việc nào và từng trợ lý đang làm gì, hiển thị ngay dưới plan tương ứng. Lệnh gốc có thể xem khi cần.
+- **Bản đồ kiến thức.** Chủ đề lấy từ một bộ phân loại dùng chung, có thể chỉnh sửa. Đồ thị thể hiện quan hệ phụ thuộc và chủ đề chung giữa các plan.
+- **Tìm kiếm.** Tìm toàn văn trong plan, việc và chủ đề, không phân biệt dấu tiếng Việt.
+- **Giao diện song ngữ.** Tiếng Anh và tiếng Việt, tự chọn theo ngôn ngữ trình duyệt.
+- **Gọn nhẹ.** Một file khoảng 9 MB, dùng khoảng 16 MB bộ nhớ khi rảnh với 1.000 plan.
 
 ## Cài đặt
 
-> Bản phát hành đầu tiên (v0.1.0) đang chờ: các lệnh dưới đây sẽ dùng được sau khi phát hành.
+> Bản dựng sẵn được phát hành từ phiên bản v0.1.0.
 
-**macOS / Linux**
+| Nền tảng | Lệnh |
+|---|---|
+| macOS, Linux | `curl --proto '=https' --tlsv1.2 -LsSf https://github.com/wik1ngst-1103/plan-atlas/releases/latest/download/plan-atlas-installer.sh \| sh` |
+| Windows (PowerShell) | `powershell -ExecutionPolicy Bypass -c "irm https://github.com/wik1ngst-1103/plan-atlas/releases/latest/download/plan-atlas-installer.ps1 \| iex"` |
+| Homebrew | `brew install wik1ngst-1103/tap/plan-atlas` |
+| npm | `npm install -g plan-atlas` |
+
+Cần cài toàn cục. Không hỗ trợ chạy qua `npx`, vì Claude Code cần một đường dẫn cố định tới file thực thi.
+
+<details>
+<summary>Build từ mã nguồn</summary>
+
+Cần Rust 1.89 trở lên và Node.js 22 trở lên. Giao diện web được biên dịch vào file thực thi.
+
 ```sh
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/wik1ngst-1103/plan-atlas/releases/latest/download/plan-atlas-installer.sh | sh
+git clone https://github.com/wik1ngst-1103/plan-atlas.git
+cd plan-atlas
+(cd web && npm ci && npm run build)
+cargo build --release
+# file thực thi: target/release/plan-atlas
 ```
 
-**Windows (PowerShell)**
-```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/wik1ngst-1103/plan-atlas/releases/latest/download/plan-atlas-installer.ps1 | iex"
-```
+</details>
 
-**Cách khác**
-```sh
-brew install wik1ngst-1103/tap/plan-atlas   # Homebrew
-npm i -g plan-atlas                    # npm (cài toàn cục; chạy qua `npx` không setup được)
-```
-
-Từ mã nguồn (cần Rust 1.89+ và Node 22): `cd web && npm ci && npm run build && cd .. && cargo build --release` — giao diện web được nhúng vào file chạy, xem [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Sử dụng
+## Bắt đầu
 
 ```sh
 plan-atlas
 ```
 
-Vậy thôi. Lần đầu chạy, Plan Atlas hỏi có kết nối với Claude Code không, nhập các plan sẵn có rồi mở trình duyệt tại `http://127.0.0.1:7420`. Chạy lại khi đang chạy thì chỉ mở thêm một tab.
+Ở lần chạy đầu, Plan Atlas sẽ:
 
-| Lệnh | Tác dụng |
+1. đề nghị kết nối với Claude Code (xem [Tích hợp Claude Code](#tích-hợp-claude-code)),
+2. nhập các plan có sẵn trong `~/.claude/plans`,
+3. mở giao diện tại `http://127.0.0.1:7420`.
+
+Chạy lại lệnh khi Plan Atlas đang chạy sẽ mở thêm một tab trình duyệt thay vì khởi động phiên bản thứ hai.
+
+## Sử dụng
+
+### Các lệnh
+
+| Lệnh | Mô tả |
 |---|---|
-| `plan-atlas` | Chạy ứng dụng và mở trình duyệt (`--port <n>`, `--no-open`) |
-| `plan-atlas setup` | Cài Skill, hooks và MCP server vào Claude Code |
-| `plan-atlas uninstall-claude` | Gỡ mọi thứ `setup` đã thêm (giữ nguyên cài đặt khác của bạn) |
-| `plan-atlas import` | Nhập lại plan từ `~/.claude/plans/` |
-| `plan-atlas import <tệp\|thư mục>... [--project x]` | Nhập plan Markdown để ở nơi khác (thư mục được quét tìm `*.md`) |
-| `plan-atlas mcp` | MCP server qua stdio (Claude Code tự gọi) |
-| `plan-atlas hook` | Xử lý hook (Claude Code tự gọi) |
+| `plan-atlas` | Khởi động ứng dụng và mở trình duyệt. Tuỳ chọn: `--port <n>`, `--no-open`. |
+| `plan-atlas setup [--yes]` | Kết nối Plan Atlas với Claude Code. |
+| `plan-atlas uninstall-claude [--yes]` | Gỡ mọi thứ `setup` đã thêm; các cài đặt khác giữ nguyên. |
+| `plan-atlas import [ĐƯỜNG_DẪN]... [--project <tên>]` | Nhập plan. Không có đường dẫn thì nhập từ `~/.claude/plans`. |
+| `plan-atlas task start\|done <plan-id> <task-id>` | Cập nhật trạng thái việc từ dòng lệnh. |
+| `plan-atlas mcp` | Chạy MCP server qua stdio. Do Claude Code khởi động. |
+| `plan-atlas hook` | Xử lý sự kiện hook của Claude Code. Do Claude Code gọi. |
 
-### Nhập plan từ nơi khác
+### Nhập plan
 
-Plan bạn để ngoài `~/.claude/plans` cũng có thể được sao chép vào; tệp gốc không bao giờ bị thay đổi và nhập lại cùng một tệp sẽ không tạo bản trùng.
+Plan lưu ngoài `~/.claude/plans` có thể nhập từ giao diện hoặc dòng lệnh. Nhập lại một file không thay đổi sẽ không có tác dụng gì.
 
-- **Trên trình duyệt:** bấm **Nhập plan** bên dưới danh sách dự án, chọn vài tệp `.md` hoặc cả một thư mục, chọn dự án (hoặc để chưa phân loại) rồi bấm **Nhập**.
-- **Trong terminal:** `plan-atlas import ~/notes/plans --project my-app`. Không có `--project` thì mỗi plan vào dự án theo kho git chứa nó, nếu không thì theo dự án của phiên Claude đã viết nó, còn lại vào `unsorted`. Thư mục ẩn, `node_modules` và `target` được bỏ qua.
+- **Giao diện:** chọn **Import plans** bên dưới danh sách dự án, chọn file Markdown hoặc một thư mục, chọn dự án đích rồi xác nhận.
+- **Dòng lệnh:**
 
-### `setup` thay đổi những gì
+  ```sh
+  plan-atlas import ~/notes/plans --project my-app
+  ```
 
-- Thêm `~/.claude/skills/plan-atlas/SKILL.md` để Claude biết tạo plan ở đâu và theo cấu trúc nào.
-- Thêm hook cho `PreToolUse`, `SubagentStart`, `SubagentStop`, `SessionEnd` vào `~/.claude/settings.json` — có bản sao lưu kèm thời gian, hook sẵn có được giữ nguyên.
-- Đăng ký MCP server: `claude mcp add --scope user plan-atlas -- plan-atlas mcp`.
+  Thư mục được quét đệ quy để tìm file `*.md`; bỏ qua thư mục ẩn, `node_modules` và `target`. Nếu không có `--project`, mỗi plan được gán vào Git repository chứa nó, sau đó là dự án của phiên Claude Code đã viết plan, cuối cùng là `unsorted`.
 
-### Cấu hình
+## Tích hợp Claude Code
 
-| | Mặc định | Thay đổi bằng |
+`plan-atlas setup` thực hiện ba thay đổi trong cấu hình Claude Code:
+
+| Thay đổi | Vị trí |
+|---|---|
+| Cài Skill hướng dẫn Claude tạo plan ở đâu và theo cấu trúc nào | `~/.claude/skills/plan-atlas/SKILL.md` |
+| Thêm hook cho `PreToolUse`, `SubagentStart`, `SubagentStop` và `SessionEnd` | `~/.claude/settings.json` (sao lưu kèm thời gian trước khi ghi; giữ nguyên hook sẵn có) |
+| Đăng ký MCP server | `claude mcp add --transport stdio --scope user plan-atlas -- plan-atlas mcp` |
+
+Khi đã tích hợp, Claude tạo plan qua MCP server, ghi nhận tiến độ từng việc và liên kết các plan liên quan. Plan viết trong plan mode của Claude Code được đăng ký sau khi bạn duyệt. Để hoàn tác toàn bộ, chạy `plan-atlas uninstall-claude`.
+
+## Cấu hình
+
+| Thiết lập | Mặc định | Thay đổi bằng |
 |---|---|---|
-| Thư mục dữ liệu | `~/.plan-atlas` | `PLAN_ATLAS_HOME` |
-| Cổng | `7420` (tự lùi tới `7430`) | `--port`, `PLAN_ATLAS_PORT` |
-| Ngôn ngữ giao diện | Theo trình duyệt (English hoặc Tiếng Việt) | nút đổi ngôn ngữ trên thanh trên cùng |
-| Chủ đề | `~/.plan-atlas/taxonomy.toml` | sửa file rồi chạy `plan-atlas setup` để cập nhật Skill |
+| Thư mục dữ liệu | `~/.plan-atlas` | Biến môi trường `PLAN_ATLAS_HOME` |
+| Cổng | `7420`, tự lùi tới `7430` | `--port` hoặc `PLAN_ATLAS_PORT` |
+| Thư mục Claude Code | `~/.claude` | `CLAUDE_CONFIG_DIR` |
+| Ngôn ngữ giao diện | Theo trình duyệt (tiếng Anh hoặc tiếng Việt) | Nút đổi ngôn ngữ trên thanh trên cùng |
+| Bộ phân loại chủ đề | `~/.plan-atlas/taxonomy.toml` | Sửa file rồi chạy `plan-atlas setup` để cập nhật Skill |
 
 ## Định dạng plan
 
-Xem ví dụ đầy đủ trong [README tiếng Anh](README.md#plan-format). Bạn hiếm khi phải tự viết: Claude tạo plan qua tool MCP `create_plan`. Sửa tay vẫn được — file được lập chỉ mục lại khi lưu, lỗi hiện thành cảnh báo trong giao diện chứ không làm hỏng ứng dụng.
+Plan là file Markdown có phần front matter YAML. Claude tạo plan qua MCP server nên hiếm khi cần viết tay. Vẫn có thể sửa tay: file được lập chỉ mục lại khi lưu, lỗi cấu trúc hiển thị thành cảnh báo trong giao diện thay vì làm hỏng ứng dụng.
 
-## Quyền riêng tư & bảo mật
+<details>
+<summary>Ví dụ</summary>
 
-- Không thu thập dữ liệu sử dụng, không gọi mạng ngoài `127.0.0.1`.
-- Request ghi dữ liệu bắt buộc có header riêng và `Host` là localhost (chống DNS rebinding).
-- Hook không bao giờ chặn Claude Code: luôn kết thúc trong 200 ms với mã thoát 0.
+```markdown
+---
+id: PLAN-auth-gateway-001
+project: auth-gateway
+title: Migrate sessions to JWT + RBAC
+tags: [type/feature, domain/security, tech/jwt]
+related:
+  - { to: PLAN-auth-gateway-000, type: depends_on }
+created: 2026-11-20
+---
+## 01. Overview
+## 02. Requirements & Scope
+## 03. Technical Analysis
+### Current Architecture
+### Existing Problems
+### Proposed Architecture
+## 04. Task Breakdown
+### TASK-001: Authentication Service
+- complexity: 4
+- model: opus
+- effort: medium
+- status: todo
+- tags: [tech/jwt]
 
-Báo lỗ hổng bảo mật theo hướng dẫn trong [SECURITY.md](SECURITY.md).
+Mô tả và tiêu chí hoàn thành.
+## 05. Risks & Rollback
+```
+
+Loại quan hệ hỗ trợ: `depends_on`, `extends`, `relates_to`. Trạng thái việc: `todo`, `in_progress`, `review`, `done`.
+
+</details>
+
+## Kiến trúc
+
+```
+Claude Code ── MCP (stdio) ── plan-atlas mcp ──┐
+Claude Code ── hooks ──────── plan-atlas hook ─┼──► chỉ mục SQLite ◄── plan-atlas server (127.0.0.1)
+~/.plan-atlas/plans/*.md ◄─── theo dõi file ───┘                              ▲
+                                                                          trình duyệt
+```
+
+- Một file thực thi Rust đảm nhận web server, MCP server, xử lý hook và trình cài đặt. Giao diện Svelte được nhúng sẵn bên trong.
+- File Markdown là nguồn dữ liệu gốc. Cơ sở dữ liệu SQLite chỉ là chỉ mục, có thể xoá và dựng lại bất cứ lúc nào.
+- Cập nhật trực tiếp được đẩy tới trình duyệt qua Server-Sent Events.
+
+## Bảo mật và quyền riêng tư
+
+- Không thu thập dữ liệu sử dụng. Server chỉ lắng nghe ở `127.0.0.1` và không kết nối ra ngoài.
+- Request bị từ chối nếu header `Host` không phải server cục bộ, giúp chống DNS rebinding. Request ghi dữ liệu còn phải có header riêng.
+- Nội dung plan được làm sạch trước khi hiển thị.
+- Bộ xử lý hook được thiết kế để không bao giờ ảnh hưởng Claude Code: luôn thoát với mã 0, không in ra gì và kết thúc trong 200 ms.
+
+Để báo lỗ hổng bảo mật, xem [SECURITY.md](SECURITY.md).
 
 ## Đóng góp
 
-Rất hoan nghênh đóng góp — code, bản dịch, chủ đề cho bộ phân loại, tài liệu, báo lỗi. Bắt đầu từ [CONTRIBUTING.md](CONTRIBUTING.md) (tiếng Anh). Issue và pull request viết bằng tiếng Việt cũng được chấp nhận. Mọi người tham gia đều đồng ý với [Quy tắc ứng xử](CODE_OF_CONDUCT.md).
+Hoan nghênh mọi đóng góp: mã nguồn, bản dịch, chủ đề cho bộ phân loại, tài liệu và báo lỗi. Xem [CONTRIBUTING.md](CONTRIBUTING.md) để biết cách thiết lập môi trường và quy ước. Mọi người tham gia cần tuân thủ [Quy tắc ứng xử](CODE_OF_CONDUCT.md). Issue và pull request viết bằng tiếng Việt cũng được chấp nhận.
 
 ## Lộ trình
 
-- [ ] v0.1 — kho plan, nhập plan cũ, tài liệu, bảng công việc, hoạt động trực tiếp, bản đồ kiến thức, tìm kiếm, bộ cài
-- [ ] Chạy nền như dịch vụ hệ điều hành (launchd / systemd / Windows service)
-- [ ] Chi phí & token theo từng việc
-- [ ] Xuất plan thành trang tĩnh để chia sẻ
-- [ ] Thêm ngôn ngữ giao diện
+- Chạy nền như dịch vụ hệ điều hành (launchd, systemd, Windows service)
+- Chi phí và lượng token theo từng việc
+- Xuất plan thành trang tĩnh để chia sẻ
+- Thêm ngôn ngữ giao diện
 
 ## Giấy phép
 
-[MIT](LICENSE) © Plan Atlas contributors
+Phát hành theo [giấy phép MIT](LICENSE).
